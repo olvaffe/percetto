@@ -7,24 +7,24 @@
 #include <stdio.h>
 #include <unistd.h>
 
-#include "trace-1.h"
+#include "multi-category.h"
 
-atomic_uint_fast32_t trace_instance_mask;
+atomic_uint_fast32_t trace_instance_masks[TRACE_COUNT];
 
 static void trace_state_callback(int category,
                                  int instance,
                                  int state,
                                  void* callback_data) {
-  assert(category == 0);
+  assert(category < TRACE_COUNT);
   assert(instance < PERCETTO_MAX_DATA_SOURCE_INSTANCES);
   assert(callback_data == NULL);
 
   switch (state) {
     case PERCETTO_CATEGORY_STATE_START:
-      atomic_fetch_or(&trace_instance_mask, 1 << instance);
+      atomic_fetch_or(&trace_instance_masks[category], 1 << instance);
       break;
     case PERCETTO_CATEGORY_STATE_STOP:
-      atomic_fetch_and(&trace_instance_mask, ~(1 << instance));
+      atomic_fetch_and(&trace_instance_masks[category], ~(1 << instance));
       break;
     default:
       assert(false);
@@ -33,19 +33,18 @@ static void trace_state_callback(int category,
 }
 
 bool trace_init(void) {
-  static const char* category = "trace-1";
-  return percetto_init(1, &category, trace_state_callback, NULL);
+  static const char* categories[TRACE_COUNT] = {
+      [TRACE_CAT] = "cat",
+      [TRACE_DOG] = "dog",
+  };
+  return percetto_init(TRACE_COUNT, categories, trace_state_callback, NULL);
 }
 
 static void test(void) {
-  TRACE_FUNC();
-
-  {
-    TRACE_SCOPED("nested scope");
-
-    trace_begin("manual");
-    trace_end();
-  }
+  trace_begin(TRACE_CAT, "cat");
+  trace_begin(TRACE_DOG, "dog");
+  trace_end(TRACE_DOG);
+  trace_end(TRACE_CAT);
 }
 
 int main(void) {
@@ -60,7 +59,12 @@ int main(void) {
   test();
 
   for (i = 0; i < wait; i++) {
-    if (trace_is_enabled())
+    int j;
+    for (j = 0; j < TRACE_COUNT; j++) {
+      if (!trace_is_enabled(j))
+        break;
+    }
+    if (j == TRACE_COUNT)
       break;
     sleep(1);
   }

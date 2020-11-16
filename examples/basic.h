@@ -3,8 +3,8 @@
  * SPDX-License-Identifier: MIT
  */
 
-#ifndef TRACE_1_H
-#define TRACE_1_H
+#ifndef BASIC_H
+#define BASIC_H
 
 #include <stdatomic.h>
 #include <stdbool.h>
@@ -48,4 +48,4 @@ static inline void trace_end_scoped(const void** name) {
 
 #define TRACE_FUNC() TRACE_SCOPED(__func__)
 
-#endif /* TRACE_1_H */
+#endif /* BASIC_H */

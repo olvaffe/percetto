@@ -3,8 +3,8 @@
  * SPDX-License-Identifier: MIT
  */
 
-#ifndef TRACE_2_H
-#define TRACE_2_H
+#ifndef MULTI_CATEGORY_H
+#define MULTI_CATEGORY_H
 
 #include <stdatomic.h>
 #include <stdbool.h>
@@ -29,7 +29,7 @@ static inline bool trace_is_enabled(enum trace_category category) {
 static inline void trace_begin(enum trace_category category, const char* name) {
   const uint32_t mask = atomic_load(&trace_instance_masks[category]);
   if (mask)
-    percetto_slice_begin(0, mask, name);
+    percetto_slice_begin(category, mask, name);
 }
 
 static inline void trace_end(enum trace_category category) {
@@ -38,4 +38,4 @@ static inline void trace_end(enum trace_category category) {
     percetto_slice_end(category, mask);
 }
 
-#endif /* TRACE_2_H */
+#endif /* MULTI_CATEGORY_H */

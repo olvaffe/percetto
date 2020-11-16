@@ -2,13 +2,19 @@
 # SPDX-License-Identifier: MIT
 
 executable(
-  'trace-1',
-  'trace-1.c',
+  'basic',
+  'basic.c',
   dependencies: percetto_dep,
 )
 
 executable(
-  'trace-2',
-  'trace-2.c',
+  'multi-category',
+  'multi-category.c',
   dependencies: percetto_dep,
+)
+
+executable(
+  'size-bloat',
+  'size-bloat.cc',
+  dependencies: perfetto_sdk_dep,
 )

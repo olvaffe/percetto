@@ -10,10 +10,12 @@
 namespace {
 
 using perfetto::protos::pbzero::DataSourceDescriptor;
+using perfetto::protos::pbzero::TracePacket;
 using perfetto::protos::pbzero::TrackEvent;
 using perfetto::protos::pbzero::TrackEventDescriptor;
 
 struct Percetto {
+  perfetto::base::PlatformThreadId init_thread;
   const char** categories;
   int category_count;
   percetto_category_state_callback callback;
@@ -64,14 +66,11 @@ class PercettoDataSource : public perfetto::DataSource<PercettoDataSource> {
                               TrackEvent::Type type,
                               const char* name) {
     TraceWithInstances(instance_mask, [&](Base::TraceContext ctx) {
+      Once(ctx);
+
       /* TODO incremental state */
-      auto packet = ctx.NewTracePacket();
-      packet->set_timestamp(
-          static_cast<uint64_t>(perfetto::base::GetWallTimeNs().count()));
-      packet->set_timestamp_clock_id(
-          perfetto::protos::pbzero::BUILTIN_CLOCK_BOOTTIME);
-      packet->set_sequence_flags(
-          perfetto::protos::pbzero::TracePacket::SEQ_NEEDS_INCREMENTAL_STATE);
+      auto packet =
+          NewTracePacket(ctx, TracePacket::SEQ_NEEDS_INCREMENTAL_STATE);
 
       auto event = packet->set_track_event();
       event->set_type(type);
@@ -84,6 +83,53 @@ class PercettoDataSource : public perfetto::DataSource<PercettoDataSource> {
   }
 
  private:
+  static protozero::MessageHandle<TracePacket> NewTracePacket(
+      Base::TraceContext& ctx,
+      uint32_t seq_flags) {
+    auto packet = ctx.NewTracePacket();
+    packet->set_timestamp(
+        static_cast<uint64_t>(perfetto::base::GetWallTimeNs().count()));
+    packet->set_timestamp_clock_id(
+        perfetto::protos::pbzero::BUILTIN_CLOCK_BOOTTIME);
+    packet->set_sequence_flags(seq_flags);
+
+    return packet;
+  }
+
+  static void Once(Base::TraceContext& ctx) {
+    // XXX this is per-thread; use TLS */
+    static bool done = false;
+    if (done)
+      return;
+    done = true;
+
+    auto default_track = perfetto::ThreadTrack::Current();
+
+    {
+      auto packet =
+          NewTracePacket(ctx, TracePacket::SEQ_INCREMENTAL_STATE_CLEARED);
+      auto defaults = packet->set_trace_packet_defaults();
+      defaults->set_timestamp_clock_id(
+          perfetto::protos::pbzero::BUILTIN_CLOCK_BOOTTIME);
+
+      auto track_defaults = defaults->set_track_event_defaults();
+      track_defaults->set_track_uuid(default_track.uuid);
+    }
+
+    /* TODO see TrackRegistry */
+    {
+      auto packet =
+          NewTracePacket(ctx, TracePacket::SEQ_NEEDS_INCREMENTAL_STATE);
+      default_track.Serialize(packet->set_track_descriptor());
+    }
+
+    if (perfetto::base::GetThreadId() == sPercetto.init_thread) {
+      auto process_track = perfetto::ProcessTrack::Current();
+      auto packet =
+          NewTracePacket(ctx, TracePacket::SEQ_NEEDS_INCREMENTAL_STATE);
+      process_track.Serialize(packet->set_track_descriptor());
+    }
+  }
 };
 
 PERFETTO_DECLARE_DATA_SOURCE_STATIC_MEMBERS(PercettoDataSource);
@@ -95,6 +141,7 @@ bool percetto_init(int category_count,
                    const char** categories,
                    percetto_category_state_callback callback,
                    void* callback_data) {
+  sPercetto.init_thread = perfetto::base::GetThreadId();
   sPercetto.categories = categories;
   sPercetto.category_count = category_count;
   sPercetto.callback = callback;
