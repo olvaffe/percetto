@@ -132,10 +132,10 @@ class PercettoDataSource : public perfetto::DataSource<PercettoDataSource> {
   }
 };
 
+}  // anonymous namespace
+
 PERFETTO_DECLARE_DATA_SOURCE_STATIC_MEMBERS(PercettoDataSource);
 PERFETTO_DEFINE_DATA_SOURCE_STATIC_MEMBERS(PercettoDataSource);
-
-}  // anonymous namespace
 
 bool percetto_init(int category_count,
                    const char** categories,
