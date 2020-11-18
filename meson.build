@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: MIT
 
 project(
-  'cetto',
+  'percetto',
   ['c', 'cpp'],
   version: '0.1',
   license: 'MIT',
