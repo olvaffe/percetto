@@ -20,6 +20,7 @@ struct Percetto {
   int category_count;
   percetto_category_state_callback callback;
   void* callback_data;
+  int trace_session;
 };
 
 Percetto sPercetto;
@@ -38,6 +39,7 @@ class PercettoDataSource : public perfetto::DataSource<PercettoDataSource> {
                          PERCETTO_CATEGORY_STATE_START,
                          sPercetto.callback_data);
     }
+    ++sPercetto.trace_session;
   }
 
   void OnStop(const DataSourceBase::StopArgs& args) override {
@@ -66,7 +68,7 @@ class PercettoDataSource : public perfetto::DataSource<PercettoDataSource> {
                               TrackEvent::Type type,
                               const char* name) {
     TraceWithInstances(instance_mask, [&](Base::TraceContext ctx) {
-      Once(ctx);
+      OncePerTraceSession(ctx);
 
       /* TODO incremental state */
       auto packet =
@@ -96,12 +98,12 @@ class PercettoDataSource : public perfetto::DataSource<PercettoDataSource> {
     return packet;
   }
 
-  static void Once(Base::TraceContext& ctx) {
-    // XXX this is per-thread; use TLS */
-    static bool done = false;
-    if (done)
+  static void OncePerTraceSession(Base::TraceContext& ctx) {
+    // this is per-thread; use TLS
+    static thread_local int session = 0;
+    if (session == sPercetto.trace_session)
       return;
-    done = true;
+    session = sPercetto.trace_session;
 
     auto default_track = perfetto::ThreadTrack::Current();
 
@@ -146,6 +148,7 @@ bool percetto_init(int category_count,
   sPercetto.category_count = category_count;
   sPercetto.callback = callback;
   sPercetto.callback_data = callback_data;
+  sPercetto.trace_session = 0;
 
   perfetto::TracingInitArgs args;
   args.backends |= perfetto::kSystemBackend;
