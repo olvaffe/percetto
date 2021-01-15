@@ -16,17 +16,19 @@ extern atomic_uint_fast32_t trace_instance_mask;
 bool trace_init(void);
 
 static inline bool trace_is_enabled(void) {
-  return atomic_load(&trace_instance_mask);
+  return atomic_load_explicit(&trace_instance_mask, memory_order_relaxed);
 }
 
 static inline void trace_begin(const char* name) {
-  const uint32_t mask = atomic_load(&trace_instance_mask);
+  const uint32_t mask =
+      atomic_load_explicit(&trace_instance_mask, memory_order_relaxed);
   if (mask)
     percetto_slice_begin(0, mask, name);
 }
 
 static inline void trace_end(void) {
-  const uint32_t mask = atomic_load(&trace_instance_mask);
+  const uint32_t mask =
+      atomic_load_explicit(&trace_instance_mask, memory_order_relaxed);
   if (mask)
     percetto_slice_end(0, mask);
 }
