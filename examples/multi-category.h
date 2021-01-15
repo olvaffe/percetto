@@ -27,13 +27,15 @@ static inline bool trace_is_enabled(enum trace_category category) {
 }
 
 static inline void trace_begin(enum trace_category category, const char* name) {
-  const uint32_t mask = atomic_load(&trace_instance_masks[category]);
+  const uint32_t mask = atomic_load_explicit(&trace_instance_masks[category],
+                                             memory_order_relaxed);
   if (mask)
     percetto_slice_begin(category, mask, name);
 }
 
 static inline void trace_end(enum trace_category category) {
-  const uint32_t mask = atomic_load(&trace_instance_masks[category]);
+  const uint32_t mask = atomic_load_explicit(&trace_instance_masks[category],
+                                             memory_order_relaxed);
   if (mask)
     percetto_slice_end(category, mask);
 }
