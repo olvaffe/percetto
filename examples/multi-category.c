@@ -1,5 +1,5 @@
 /*
- * Copyright 2020 Google LLC
+ * Copyright 2021 Google LLC
  * SPDX-License-Identifier: MIT
  */
 
@@ -9,46 +9,27 @@
 
 #include "multi-category.h"
 
-atomic_uint_fast32_t trace_instance_masks[TRACE_COUNT];
+PERCETTO_CATEGORY_DEFINE(cat, "Cat events", 0);
+PERCETTO_CATEGORY_DEFINE(dog, "Dog events", PERCETTO_CATEGORY_FLAG_SLOW);
 
-static void trace_state_callback(int category,
-                                 int instance,
-                                 int state,
-                                 void* callback_data) {
-  assert(category < TRACE_COUNT);
-  assert(instance < PERCETTO_MAX_DATA_SOURCE_INSTANCES);
-  assert(callback_data == NULL);
-
-  switch (state) {
-    case PERCETTO_CATEGORY_STATE_START:
-      atomic_fetch_or(&trace_instance_masks[category], 1 << instance);
-      break;
-    case PERCETTO_CATEGORY_STATE_STOP:
-      atomic_fetch_and(&trace_instance_masks[category], ~(1 << instance));
-      break;
-    default:
-      assert(false);
-      break;
-  }
-}
-
-bool trace_init(void) {
-  static const char* categories[TRACE_COUNT] = {
-      [TRACE_CAT] = "cat",
-      [TRACE_DOG] = "dog",
+static bool trace_init(void) {
+  static struct percetto_category* categories[] = {
+      PERCETTO_CATEGORY_PTR(cat),
+      PERCETTO_CATEGORY_PTR(dog),
   };
-  return percetto_init(TRACE_COUNT, categories, trace_state_callback, NULL);
+  return percetto_init(sizeof(categories) / sizeof(categories[0]), categories);
 }
 
 static void test(void) {
-  trace_begin(TRACE_CAT, "cat");
-  trace_begin(TRACE_DOG, "dog");
-  trace_end(TRACE_DOG);
-  trace_end(TRACE_CAT);
+  TRACE_EVENT(cat, __func__);
+  TRACE_EVENT(dog, "test2");
+  const char* test3 = "test3";
+  TRACE_EVENT(dog, test3);
 }
 
 int main(void) {
-  const int wait = 5;
+  const int wait = 60;
+  const int event_count = 100;
   int i;
 
   if (!trace_init()) {
@@ -59,12 +40,7 @@ int main(void) {
   test();
 
   for (i = 0; i < wait; i++) {
-    int j;
-    for (j = 0; j < TRACE_COUNT; j++) {
-      if (!trace_is_enabled(j))
-        break;
-    }
-    if (j == TRACE_COUNT)
+    if (PERCETTO_CATEGORY_IS_ENABLED(cat) && PERCETTO_CATEGORY_IS_ENABLED(dog))
       break;
     sleep(1);
   }
@@ -73,7 +49,9 @@ int main(void) {
     return -1;
   }
 
-  test();
+  for (i = 0; i < event_count; i++)
+    test();
+
   /* flush? */
 
   return 0;

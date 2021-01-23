@@ -1,4 +1,4 @@
-# Copyright 2020 Google LLC
+# Copyright 2021 Google LLC
 # SPDX-License-Identifier: MIT
 
 # copy and build Perfetto SDK
@@ -38,6 +38,7 @@ perfetto_sdk_lib = static_library(
   'perfetto-sdk',
   perfetto_sdk_gen,
   dependencies: threads_dep,
+  cpp_args : ['-fdata-sections', '-ffunction-sections', '-Os'],
 )
 
 perfetto_sdk_dep = declare_dependency(
