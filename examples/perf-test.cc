@@ -38,7 +38,6 @@ bool wait_for_tracing(bool is_enabled) {
   return true;
 }
 
-// Returns the duration per iteration in seconds.
 void run_perf_test(const char* name, int iterations) {
   const double ns_per_sec = 1000000000.0;
   const double est_cycles_per_sec = 3000000000.0; // 3 GHz
