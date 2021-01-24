@@ -16,13 +16,14 @@ using perfetto::protos::pbzero::TrackEvent;
 using perfetto::protos::pbzero::TrackEventDescriptor;
 
 struct Percetto {
+  int is_initialized;
   perfetto::base::PlatformThreadId init_thread;
   struct percetto_category** categories;
   int category_count;
   int trace_session;
 };
 
-Percetto sPercetto;
+static Percetto s_percetto;
 
 class PercettoDataSource : public perfetto::DataSource<PercettoDataSource> {
   using Base = DataSource<PercettoDataSource>;
@@ -33,16 +34,16 @@ class PercettoDataSource : public perfetto::DataSource<PercettoDataSource> {
   }
 
   void OnStart(const DataSourceBase::StartArgs& args) override {
-    for (int i = 0; i < sPercetto.category_count; i++) {
-      std::atomic_fetch_or(&sPercetto.categories[i]->sessions,
+    for (int i = 0; i < s_percetto.category_count; i++) {
+      std::atomic_fetch_or(&s_percetto.categories[i]->sessions,
           1 << args.internal_instance_index);
     }
-    ++sPercetto.trace_session;
+    ++s_percetto.trace_session;
   }
 
   void OnStop(const DataSourceBase::StopArgs& args) override {
-    for (int i = 0; i < sPercetto.category_count; i++) {
-      std::atomic_fetch_and(&sPercetto.categories[i]->sessions,
+    for (int i = 0; i < s_percetto.category_count; i++) {
+      std::atomic_fetch_and(&s_percetto.categories[i]->sessions,
           ~(1 << args.internal_instance_index));
     }
   }
@@ -52,13 +53,13 @@ class PercettoDataSource : public perfetto::DataSource<PercettoDataSource> {
     dsd.set_name("track_event");
 
     protozero::HeapBuffered<TrackEventDescriptor> ted;
-    for (int i = 0; i < sPercetto.category_count; i++) {
+    for (int i = 0; i < s_percetto.category_count; i++) {
       auto cat = ted->add_available_categories();
-      cat->set_name(sPercetto.categories[i]->name);
-      cat->set_description(sPercetto.categories[i]->description);
-      if (sPercetto.categories[i]->flags & PERCETTO_CATEGORY_FLAG_SLOW)
+      cat->set_name(s_percetto.categories[i]->name);
+      cat->set_description(s_percetto.categories[i]->description);
+      if (s_percetto.categories[i]->flags & PERCETTO_CATEGORY_FLAG_SLOW)
         cat->add_tags("slow");
-      if (sPercetto.categories[i]->flags & PERCETTO_CATEGORY_FLAG_DEBUG)
+      if (s_percetto.categories[i]->flags & PERCETTO_CATEGORY_FLAG_DEBUG)
         cat->add_tags("debug");
     }
     dsd.set_track_event_descriptor_raw(ted.SerializeAsString());
@@ -122,9 +123,9 @@ class PercettoDataSource : public perfetto::DataSource<PercettoDataSource> {
   static bool NeedToSendTraceConfig() {
     // This is per-thread
     static thread_local int session = 0;
-    if (PERCETTO_LIKELY(session == sPercetto.trace_session))
+    if (PERCETTO_LIKELY(session == s_percetto.trace_session))
       return false;
-    session = sPercetto.trace_session;
+    session = s_percetto.trace_session;
     return true;
   }
 
@@ -149,7 +150,7 @@ class PercettoDataSource : public perfetto::DataSource<PercettoDataSource> {
       default_track.Serialize(packet->set_track_descriptor());
     }
 
-    if (perfetto::base::GetThreadId() == sPercetto.init_thread) {
+    if (perfetto::base::GetThreadId() == s_percetto.init_thread) {
       auto process_track = perfetto::ProcessTrack::Current();
       auto packet =
           NewTracePacket(ctx, TracePacket::SEQ_NEEDS_INCREMENTAL_STATE);
@@ -165,10 +166,15 @@ PERFETTO_DEFINE_DATA_SOURCE_STATIC_MEMBERS(PercettoDataSource);
 
 bool percetto_init(size_t category_count,
                    struct percetto_category** categories) {
-  sPercetto.init_thread = perfetto::base::GetThreadId();
-  sPercetto.categories = categories;
-  sPercetto.category_count = category_count;
-  sPercetto.trace_session = 0;
+  if (s_percetto.is_initialized) {
+    fprintf(stderr, "error: percetto is already initialized\n");
+    return false;
+  }
+  s_percetto.is_initialized = 1;
+  s_percetto.init_thread = perfetto::base::GetThreadId();
+  s_percetto.categories = categories;
+  s_percetto.category_count = category_count;
+  s_percetto.trace_session = 0;
 
   perfetto::TracingInitArgs args;
   args.backends = perfetto::kSystemBackend;
