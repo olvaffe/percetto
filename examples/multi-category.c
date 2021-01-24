@@ -3,9 +3,12 @@
  * SPDX-License-Identifier: MIT
  */
 
+#define _GNU_SOURCE  // for nanosleep
+
 #include <assert.h>
 #include <stdio.h>
 #include <unistd.h>
+#include <time.h>
 
 #include "multi-category.h"
 
@@ -49,10 +52,13 @@ int main(void) {
     return -1;
   }
 
-  for (i = 0; i < event_count; i++)
-    test();
-
-  /* flush? */
+  // Run forever to test consecutive trace sessions.
+  for (;;) {
+    for (i = 0; i < event_count; i++)
+      test();
+    struct timespec t = {0, 10000000};
+    nanosleep(&t, NULL);
+  }
 
   return 0;
 }
