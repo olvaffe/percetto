@@ -1,43 +1,14 @@
 /*
- * Copyright 2020 Google LLC
+ * Copyright 2021 Google LLC
  * SPDX-License-Identifier: MIT
  */
 
 #ifndef MULTI_CATEGORY_H
 #define MULTI_CATEGORY_H
 
-#include <stdatomic.h>
-#include <stdbool.h>
-
 #include "percetto.h"
 
-enum trace_category {
-  TRACE_CAT,
-  TRACE_DOG,
-
-  TRACE_COUNT,
-};
-
-extern atomic_uint_fast32_t trace_instance_masks[TRACE_COUNT];
-
-bool trace_init(void);
-
-static inline bool trace_is_enabled(enum trace_category category) {
-  return trace_instance_masks[category];
-}
-
-static inline void trace_begin(enum trace_category category, const char* name) {
-  const uint32_t mask = atomic_load_explicit(&trace_instance_masks[category],
-                                             memory_order_relaxed);
-  if (mask)
-    percetto_slice_begin(category, mask, name);
-}
-
-static inline void trace_end(enum trace_category category) {
-  const uint32_t mask = atomic_load_explicit(&trace_instance_masks[category],
-                                             memory_order_relaxed);
-  if (mask)
-    percetto_slice_end(category, mask);
-}
+PERCETTO_CATEGORY_DECLARE(cat);
+PERCETTO_CATEGORY_DECLARE(dog);
 
 #endif /* MULTI_CATEGORY_H */

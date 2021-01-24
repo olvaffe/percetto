@@ -1,5 +1,5 @@
 /*
- * Copyright 2020 Google LLC
+ * Copyright 2021 Google LLC
  * SPDX-License-Identifier: MIT
  */
 
@@ -22,7 +22,7 @@ static void test(void) {
 }
 
 int main(void) {
-  const int wait = 5;
+  const int wait = 60;
   int i;
 
   perfetto::TracingInitArgs args;
@@ -41,6 +41,5 @@ int main(void) {
     return -1;
   }
   test();
-
   return 0;
 }
