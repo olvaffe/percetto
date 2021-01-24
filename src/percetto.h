@@ -15,8 +15,10 @@ using std::atomic_uint_fast32_t;
 using std::atomic_load_explicit;
 using std::memory_order_relaxed;
 using std::size_t;
+#define PERCETTO_ATOMIC_INIT(n) {n}
 #else
 #include <stdatomic.h>
+#define PERCETTO_ATOMIC_INIT(n) n
 #endif
 
 #ifdef __cplusplus
@@ -34,7 +36,7 @@ extern "C" {
 /* Define each category in a compilation file with optional flags. */
 #define PERCETTO_CATEGORY_DEFINE(category, description, flags) \
     struct percetto_category g_percetto_category_##category = \
-        { 0, #category, description, flags, { 0 } }
+        { PERCETTO_ATOMIC_INIT(0), #category, description, flags, { 0 } }
 
 #define PERCETTO_LIKELY(x) __builtin_expect(!!(x), 1)
 #define PERCETTO_UNLIKELY(x) __builtin_expect(!!(x), 0)

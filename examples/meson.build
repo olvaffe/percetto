@@ -17,6 +17,14 @@ executable(
   link_args : ['-Wl,--gc-sections'],
 )
 
+executable(
+  'perf-test',
+  'perf-test.cc',
+  dependencies: percetto_dep,
+  cpp_args : ['-fdata-sections', '-ffunction-sections', '-Os'],
+  link_args : ['-Wl,--gc-sections'],
+)
+
 shlib = shared_library(
   'multi-perfetto-shlib',
   'multi-perfetto-shlib.c',

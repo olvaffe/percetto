@@ -23,6 +23,7 @@ static void test(void) {
 
 int main(void) {
   const int wait = 60;
+  const int event_count = 100;
   int i;
 
   perfetto::TracingInitArgs args;
@@ -40,6 +41,8 @@ int main(void) {
     printf("timed out waiting for tracing\n");
     return -1;
   }
-  test();
+  for (i = 0; i < event_count; i++)
+    test();
+
   return 0;
 }
