@@ -4,6 +4,7 @@
 percetto_lib = static_library(
   'percetto',
   'percetto.cc',
+  'perfetto-port.cc',
   dependencies: perfetto_sdk_dep,
   cpp_args : ['-fdata-sections', '-ffunction-sections', '-Os'],
 )

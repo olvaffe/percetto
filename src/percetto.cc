@@ -8,8 +8,11 @@
 #include <atomic>
 #include <perfetto.h>
 
+#include "perfetto-port.h"
+
 namespace {
 
+using perfetto::protos::gen::TrackEventConfig;
 using perfetto::protos::pbzero::DataSourceDescriptor;
 using perfetto::protos::pbzero::TracePacket;
 using perfetto::protos::pbzero::TrackEvent;
@@ -29,17 +32,26 @@ class PercettoDataSource : public perfetto::DataSource<PercettoDataSource> {
   using Base = DataSource<PercettoDataSource>;
 
  public:
-  void OnSetup(const DataSourceBase::SetupArgs&) override {
-    // TODO follow TrackEventInternal::IsCategoryEnabled
-  }
-
-  void OnStart(const DataSourceBase::StartArgs& args) override {
+  void OnSetup(const DataSourceBase::SetupArgs& args) override {
+    PERFETTO_DCHECK(args.config);
+    if (!args.config)
+      return;
+    TrackEventConfig config;
+    const auto& config_raw = args.config->track_event_config_raw();
+    bool ok = config.ParseFromArray(config_raw.data(), config_raw.size());
+    PERFETTO_DCHECK(ok);
+    if (!ok)
+      return;
     for (int i = 0; i < s_percetto.category_count; i++) {
-      std::atomic_fetch_or(&s_percetto.categories[i]->sessions,
-          1 << args.internal_instance_index);
+      if (IsCategoryEnabled(*s_percetto.categories[i], config)) {
+        std::atomic_fetch_or(&s_percetto.categories[i]->sessions,
+            1 << args.internal_instance_index);
+      }
     }
     ++s_percetto.trace_session;
   }
+
+  void OnStart(const DataSourceBase::StartArgs&) override {}
 
   void OnStop(const DataSourceBase::StopArgs& args) override {
     for (int i = 0; i < s_percetto.category_count; i++) {
