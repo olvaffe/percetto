@@ -26,35 +26,48 @@
 PERCETTO_CATEGORY_DEFINE(cat, "Cat events", 0);
 PERCETTO_CATEGORY_DEFINE(dog, "Dog events", PERCETTO_CATEGORY_FLAG_SLOW);
 
-static bool trace_init(void) {
+PERCETTO_TRACK_DEFINE(squirrels, 42);
+
+static int trace_init(void) {
+  int ret;
   static struct percetto_category* categories[] = {
       PERCETTO_CATEGORY_PTR(cat),
       PERCETTO_CATEGORY_PTR(dog),
   };
-  return percetto_init(sizeof(categories) / sizeof(categories[0]), categories);
+  ret = percetto_init(sizeof(categories) / sizeof(categories[0]),
+                      categories);
+  if (ret != 0)
+    return ret;
+  ret = percetto_register_track(PERCETTO_TRACK_PTR(squirrels));
+  return ret;
 }
 
 static void test(void) {
   TRACE_EVENT(cat, __func__);
   TRACE_EVENT(dog, "test2");
-  const char* test3 = "test3";
-  TRACE_EVENT(dog, test3);
+  const char* test3 = "instant";
+  TRACE_INSTANT(dog, test3);
+  static int count = 1;
+  count++;
+  TRACE_COUNTER(dog, squirrels, count);
 }
 
 int main(void) {
   const int wait = 60;
   const int event_count = 100;
   int i;
+  int ret;
 
-  if (!trace_init()) {
-    printf("failed to init tracing\n");
+  ret = trace_init();
+  if (ret != 0) {
+    fprintf(stderr, "failed to init tracing: %d\n", ret);
     return -1;
   }
 
   test();
 
   for (i = 0; i < wait; i++) {
-    if (PERCETTO_CATEGORY_IS_ENABLED(cat) && PERCETTO_CATEGORY_IS_ENABLED(dog))
+    if (PERCETTO_CATEGORY_IS_ENABLED(cat) || PERCETTO_CATEGORY_IS_ENABLED(dog))
       break;
     sleep(1);
   }

@@ -17,7 +17,6 @@
 #ifndef PERCETTO_H
 #define PERCETTO_H
 
-#include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
 
@@ -37,6 +36,13 @@ using std::size_t;
 extern "C" {
 #endif
 
+#define PERCETTO_LIKELY(x) __builtin_expect(!!(x), 1)
+#define PERCETTO_UNLIKELY(x) __builtin_expect(!!(x), 0)
+
+#define PERCETTO_UID3(a, b) percetto_uid_##a##b
+#define PERCETTO_UID2(a, b) PERCETTO_UID3(a, b)
+#define PERCETTO_UID(prefix) PERCETTO_UID2(prefix, __LINE__)
+
 /* This category must be explicitly requested, disabled by default. */
 #define PERCETTO_CATEGORY_FLAG_SLOW   (1 << 0)
 /* More verbose debug data, disabled by default. */
@@ -50,26 +56,33 @@ extern "C" {
     struct percetto_category g_percetto_category_##category = \
         { PERCETTO_ATOMIC_INIT(0), #category, description, flags, { 0 } }
 
-#define PERCETTO_LIKELY(x) __builtin_expect(!!(x), 1)
-#define PERCETTO_UNLIKELY(x) __builtin_expect(!!(x), 0)
-
-#define PERCETTO_UID3(a, b) percetto_uid_##a##b
-#define PERCETTO_UID2(a, b) PERCETTO_UID3(a, b)
-#define PERCETTO_UID(prefix) PERCETTO_UID2(prefix, __LINE__)
+/* Declare each track in a header file. */
+#define PERCETTO_TRACK_DECLARE(track) \
+    extern struct percetto_track g_percetto_track_##track
+/* Define each track in a compilation file. */
+#define PERCETTO_TRACK_DEFINE(track, track_uuid_ui64) \
+    struct percetto_track g_percetto_track_##track = \
+        { track_uuid_ui64, #track, { 0 } }
+#define PERCETTO_TRACK_PTR(track) (&g_percetto_track_##track)
 
 #define PERCETTO_CATEGORY_PTR(category) (&g_percetto_category_##category)
 
 #define PERCETTO_CATEGORY_IS_ENABLED(category) \
     (!!g_percetto_category_##category.sessions)
 
-#define TRACE_EVENT(category, name) \
-    struct percetto_category* PERCETTO_UID(trace_scoped) \
-        __attribute__((cleanup(percetto_trace_end), unused)) = \
-            percetto_trace_begin(&g_percetto_category_##category, name)
+#define PERCETTO_MAX_TRACKS 32
+
+enum percetto_event_type {
+  // Same as perfetto TrackEvent_Type.
+  PERCETTO_EVENT_UNSPECIFIED = 0,
+  PERCETTO_EVENT_BEGIN = 1,
+  PERCETTO_EVENT_END = 2,
+  PERCETTO_EVENT_INSTANT = 3,
+  PERCETTO_EVENT_COUNTER = 4,
+};
 
 // TODO: add support for trace events with custom timestamps.
 // TODO: add support for extra parameters on trace events.
-// TODO: add support for flow events.
 
 struct percetto_category {
   atomic_uint_fast32_t sessions;
@@ -80,36 +93,73 @@ struct percetto_category {
   uint8_t _reserved[32];
 };
 
-/* categories param must be a pointer to static storage. */
-bool percetto_init(size_t category_count,
-                   struct percetto_category** categories);
+struct percetto_track {
+  const uint64_t uuid;
+  const char* name;
+  uint8_t _reserved[64];
+};
 
-void percetto_slice_begin(struct percetto_category* category,
-                          uint32_t instance_mask,
+/* categories param must be a pointer to static storage. */
+int percetto_init(size_t category_count,
+                  struct percetto_category** categories);
+
+/* up to PERCETTO_MAX_TRACKS tracks can be added for counters or flow events */
+int percetto_register_track(struct percetto_track* track);
+
+void percetto_event_begin(struct percetto_category* category,
+                          uint32_t sessions,
                           const char* name);
 
-void percetto_slice_end(struct percetto_category* category,
-                        uint32_t instance_mask);
+void percetto_event_end(struct percetto_category* category,
+                        uint32_t sessions);
 
-void percetto_instant(struct percetto_category* category,
-                      uint32_t instance_mask,
-                      const char* name);
+void percetto_event(struct percetto_category* category,
+                    uint32_t sessions,
+                    const char* name,
+                    enum percetto_event_type type,
+                    uint64_t track_uuid,
+                    int64_t extra);
 
-static inline struct percetto_category* percetto_trace_begin(
-    struct percetto_category* category, const char* name) {
-  const uint32_t mask = atomic_load_explicit(&category->sessions,
-                                             memory_order_relaxed);
-  if (PERCETTO_UNLIKELY(mask))
-    percetto_slice_begin(category, mask, name);
-  return category;
-}
-
-static inline void percetto_trace_end(struct percetto_category** category) {
+static inline void percetto_cleanup_end(struct percetto_category** category) {
   const uint32_t mask = atomic_load_explicit(&(*category)->sessions,
                                              memory_order_relaxed);
   if (PERCETTO_UNLIKELY(mask))
-    percetto_slice_end(*category, mask);
+    percetto_event_end(*category, mask);
 }
+
+#define PERCETTO_LOAD_MASK(category) \
+    atomic_load_explicit(&g_percetto_category_##category.sessions, \
+        memory_order_relaxed)
+
+/* Trace the current scope. /name/ is only evaluated when tracing is
+ * enabled. */
+#define TRACE_EVENT(category, name) \
+    const uint32_t PERCETTO_UID(mask) = PERCETTO_LOAD_MASK(category); \
+    if (PERCETTO_UNLIKELY(PERCETTO_UID(mask))) \
+      percetto_event_begin(&g_percetto_category_##category, \
+          PERCETTO_UID(mask), (name)); \
+    struct percetto_category* PERCETTO_UID(trace_scoped) \
+        __attribute__((cleanup(percetto_cleanup_end), unused)) = \
+            &g_percetto_category_##category
+
+#define TRACE_INSTANT(category, name) \
+    const uint32_t PERCETTO_UID(mask) = PERCETTO_LOAD_MASK(category); \
+    if (PERCETTO_UNLIKELY(PERCETTO_UID(mask))) \
+      percetto_event(&g_percetto_category_##category, PERCETTO_UID(mask), \
+          (name), PERCETTO_EVENT_INSTANT, 0, 0)
+
+#define TRACE_COUNTER(category, track, i64_value) \
+    const uint32_t PERCETTO_UID(mask) = PERCETTO_LOAD_MASK(category); \
+    if (PERCETTO_UNLIKELY(PERCETTO_UID(mask))) \
+      percetto_event(&g_percetto_category_##category, PERCETTO_UID(mask), \
+          NULL, PERCETTO_EVENT_COUNTER, g_percetto_track_##track.uuid, \
+          (int64_t)(i64_value))
+
+#define TRACE_FLOW(category, name, cookie) \
+    const uint32_t PERCETTO_UID(mask) = PERCETTO_LOAD_MASK(category); \
+    if (PERCETTO_UNLIKELY(PERCETTO_UID(mask))) \
+      percetto_event(&g_percetto_category_##category, PERCETTO_UID(mask), \
+          (name), PERCETTO_EVENT_INSTANT, 0, (int64_t)(cookie))
 
 #ifdef __cplusplus
 }

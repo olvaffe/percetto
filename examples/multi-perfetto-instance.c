@@ -23,7 +23,7 @@
 
 PERCETTO_CATEGORY_DEFINE(test, "Test events", 0);
 
-static bool trace_init(void) {
+static int trace_init(void) {
   static struct percetto_category* categories[] = {
       PERCETTO_CATEGORY_PTR(test),
   };
@@ -39,13 +39,16 @@ int main(void) {
   const int wait = 60;
   const int event_count = 100;
   int i;
+  int ret;
 
-  if (!trace_init()) {
-    printf("failed to init tracing\n");
+  ret = trace_init();
+  if (ret != 0) {
+    fprintf(stderr, "failed to init tracing: %d\n", ret);
     return -1;
   }
 
-  if (!test_shlib_init()) {
+  ret = test_shlib_init();
+  if (ret != 0) {
     printf("failed to init shlib\n");
     return -1;
   }

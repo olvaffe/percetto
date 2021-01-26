@@ -23,7 +23,7 @@
 
 PERCETTO_CATEGORY_DEFINE(test, "Test events", 0);
 
-static bool trace_init(void) {
+static int trace_init(void) {
   static struct percetto_category* categories[] = {
       PERCETTO_CATEGORY_PTR(test),
   };
@@ -69,8 +69,9 @@ int main(void) {
   const int enabled_event_count = 1000000;
   const int disabled_event_count = 100000000;
 
-  if (!trace_init()) {
-    fprintf(stderr, "failed to init tracing\n");
+  int ret = trace_init();
+  if (ret != 0) {
+    fprintf(stderr, "failed to init tracing: %d\n", ret);
     return -1;
   }
 

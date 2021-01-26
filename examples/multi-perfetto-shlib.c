@@ -19,7 +19,7 @@
 
 PERCETTO_CATEGORY_DEFINE(shlib, "Shared lib test events", 0);
 
-bool test_shlib_init(void) {
+int test_shlib_init(void) {
   static struct percetto_category* categories[] = {
       PERCETTO_CATEGORY_PTR(shlib),
   };
