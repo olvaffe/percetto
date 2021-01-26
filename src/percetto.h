@@ -155,11 +155,11 @@ static inline void percetto_cleanup_end(struct percetto_category** category) {
           NULL, PERCETTO_EVENT_COUNTER, g_percetto_track_##track.uuid, \
           (int64_t)(i64_value))
 
-#define TRACE_FLOW(category, name, cookie) \
+#define TRACE_FLOW(category, name, i64_cookie) \
     const uint32_t PERCETTO_UID(mask) = PERCETTO_LOAD_MASK(category); \
     if (PERCETTO_UNLIKELY(PERCETTO_UID(mask))) \
       percetto_event(&g_percetto_category_##category, PERCETTO_UID(mask), \
-          (name), PERCETTO_EVENT_INSTANT, 0, (int64_t)(cookie))
+          (name), PERCETTO_EVENT_INSTANT, 0, (int64_t)(i64_cookie))
 
 #ifdef __cplusplus
 }

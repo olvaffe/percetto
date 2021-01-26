@@ -127,8 +127,8 @@ class PercettoDataSource : public perfetto::DataSource<PercettoDataSource> {
         OncePerTraceSession(ctx);
 
       /* TODO incremental state */
-      auto packet = NewTracePacket(ctx, timestamp,
-          TracePacket::SEQ_NEEDS_INCREMENTAL_STATE);
+      auto packet = NewTracePacket(ctx,
+          TracePacket::SEQ_NEEDS_INCREMENTAL_STATE, timestamp);
 
       auto event = packet->set_track_event();
       event->set_type(type);
