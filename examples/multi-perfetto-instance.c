@@ -32,7 +32,10 @@ static int trace_init(void) {
 
 static void test(void) {
   TRACE_EVENT(test, "main_prog");
-  test_shlib_func();
+  static int64_t flow_id = 1;
+  ++flow_id;
+  TRACE_FLOW(test, "flow1", flow_id);
+  test_shlib_func(flow_id);
 }
 
 int main(void) {

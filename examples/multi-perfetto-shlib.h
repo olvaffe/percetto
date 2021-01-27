@@ -20,6 +20,6 @@
 #include <stdbool.h>
 
 __attribute__((visibility("default"))) int test_shlib_init(void);
-__attribute__((visibility("default"))) void test_shlib_func(void);
+__attribute__((visibility("default"))) void test_shlib_func(int64_t flow_id);
 
 #endif /* MULTI_PERFETTO_SHLIB_H */

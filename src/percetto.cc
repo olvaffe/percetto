@@ -114,13 +114,15 @@ class PercettoDataSource : public perfetto::DataSource<PercettoDataSource> {
     return Base::Register(dsd);
   }
 
-  static inline void TraceTrackEvent(struct percetto_category* category,
-                                     const uint32_t sessions,
-                                     const TrackEvent::Type type,
-                                     const char* name,
-                                     uint64_t timestamp,
-                                     uint64_t track_uuid,
-                                     int64_t extra) {
+  static inline void TraceTrackEvent(
+      struct percetto_category* category,
+      const uint32_t sessions,
+      const TrackEvent::Type type,
+      const char* name,
+      uint64_t timestamp,
+      uint64_t track_uuid,
+      int64_t extra,
+      const struct percetto_event_extended* extended) {
     bool do_once = NeedToSendTraceConfig();
     TraceWithInstances(sessions, [&](Base::TraceContext ctx) {
       if (PERCETTO_UNLIKELY(do_once))
@@ -133,22 +135,68 @@ class PercettoDataSource : public perfetto::DataSource<PercettoDataSource> {
       auto event = packet->set_track_event();
       event->set_type(type);
 
+      if (PERCETTO_UNLIKELY(track_uuid))
+        event->set_track_uuid(perfetto::Track(track_uuid).uuid);
+
       /* TODO intern strings with EventCategory */
       event->add_categories(category->name, strlen(category->name));
       if (type == TrackEvent::Type::TrackEvent_Type_TYPE_COUNTER) {
         // TODO(jbates): set track uuid on other thread events to
         //               perfetto::ThreadTrack::Current().uuid
-        event->set_track_uuid(perfetto::Track(track_uuid).uuid);
         event->set_counter_value(extra);
-      } else if (type != TrackEvent::Type::TrackEvent_Type_TYPE_SLICE_END) {
-        event->set_name(name, strlen(name));
+      } else {
+        if (type != TrackEvent::Type::TrackEvent_Type_TYPE_SLICE_END)
+          event->set_name(name, strlen(name));
         if (extra != 0)
           event->add_flow_ids(static_cast<uint64_t>(extra));
+      }
+      while (PERCETTO_UNLIKELY(extended)) {
+        AddExtendedData(event, extended);
+        extended = extended->next;
       }
     });
   }
 
  private:
+  static void AddExtendedData(
+      TrackEvent* event, const struct percetto_event_extended* extended) {
+    switch(extended->type) {
+      case PERCETTO_EVENT_EXTENDED_DEBUG_DATA: {
+        AddDebugData(event,
+            reinterpret_cast<const struct percetto_event_debug_data*>(
+                extended));
+        break;
+      }
+    }
+  }
+
+  static void AddDebugData(
+      TrackEvent* event, const struct percetto_event_debug_data* data) {
+    auto debug = event->add_debug_annotations();
+    debug->set_name(data->name);
+    switch(data->type) {
+      case PERCETTO_EVENT_DEBUG_DATA_BOOL:
+        debug->set_bool_value(!!data->bool_value);
+        break;
+      case PERCETTO_EVENT_DEBUG_DATA_UINT:
+        debug->set_uint_value(data->uint_value);
+        break;
+      case PERCETTO_EVENT_DEBUG_DATA_INT:
+        debug->set_int_value(data->int_value);
+        break;
+      case PERCETTO_EVENT_DEBUG_DATA_DOUBLE:
+        debug->set_double_value(data->double_value);
+        break;
+      case PERCETTO_EVENT_DEBUG_DATA_STRING:
+        debug->set_string_value(data->string_value,
+                                strlen(data->string_value));
+        break;
+      case PERCETTO_EVENT_DEBUG_DATA_POINTER:
+        debug->set_pointer_value(data->pointer_value);
+        break;
+    }
+  }
+
   static protozero::MessageHandle<TracePacket> NewTracePacket(
       Base::TraceContext& ctx,
       uint32_t seq_flags,
@@ -217,7 +265,9 @@ class PercettoDataSource : public perfetto::DataSource<PercettoDataSource> {
         auto track_descriptor = packet->set_track_descriptor();
         perfetto_track.Serialize(track_descriptor);
         track_descriptor->set_name(s_percetto.tracks[i]->name);
-        track_descriptor->set_counter();
+        if (static_cast<percetto_track_type>(s_percetto.tracks[i]->type) ==
+            PERCETTO_TRACK_COUNTER)
+          track_descriptor->set_counter();
       }
     }
   }
@@ -228,6 +278,7 @@ class PercettoDataSource : public perfetto::DataSource<PercettoDataSource> {
 PERFETTO_DECLARE_DATA_SOURCE_STATIC_MEMBERS(PercettoDataSource);
 PERFETTO_DEFINE_DATA_SOURCE_STATIC_MEMBERS(PercettoDataSource);
 
+extern "C"
 int percetto_init(size_t category_count,
                   struct percetto_category** categories) {
   if (s_percetto.is_initialized) {
@@ -249,38 +300,87 @@ int percetto_init(size_t category_count,
   return PercettoDataSource::Register() ? 0 : -1;
 }
 
+extern "C"
 int percetto_register_track(struct percetto_track* track) {
   if (s_percetto.track_count == PERCETTO_MAX_TRACKS) {
     fprintf(stderr, "error: no more tracks are allowed\n");
     return -1;
   }
+  // TODO(jbates): thread safety
   s_percetto.tracks[s_percetto.track_count++] = track;
   return 0;
 }
 
+extern "C"
 void percetto_event_begin(struct percetto_category* category,
                           uint32_t sessions,
                           const char* name) {
   PercettoDataSource::TraceTrackEvent(
       category, sessions, TrackEvent::Type::TrackEvent_Type_TYPE_SLICE_BEGIN,
-      name, GetTimestampNs(), 0, 0);
+      name, GetTimestampNs(), 0, 0, NULL);
 }
 
+extern "C"
 void percetto_event_end(struct percetto_category* category,
                         uint32_t sessions) {
   PercettoDataSource::TraceTrackEvent(
       category, sessions, TrackEvent::Type::TrackEvent_Type_TYPE_SLICE_END,
-      NULL, GetTimestampNs(), 0, 0);
+      NULL, GetTimestampNs(), 0, 0, NULL);
 }
 
+extern "C"
 void percetto_event(struct percetto_category* category,
                     uint32_t sessions,
-                    const char* name,
-                    enum percetto_event_type type,
-                    uint64_t track_uuid,
-                    int64_t extra) {
+                    int32_t type,
+                    const struct percetto_event_data* data) {
   TrackEvent::Type perfetto_type = static_cast<TrackEvent::Type>(type);
-  PercettoDataSource::TraceTrackEvent(
-      category, sessions, perfetto_type,
-      name, GetTimestampNs(), track_uuid, extra);
+  uint64_t timestamp;
+  if (PERCETTO_LIKELY(data->timestamp))
+    timestamp = data->timestamp;
+  else
+    timestamp = GetTimestampNs();
+  if (perfetto_type == TrackEvent::Type::TrackEvent_Type_TYPE_INSTANT &&
+      data->extra != 0) {
+    // TODO(jbates): remove when perfetto UI bug fixed for INSTANT+FLOW events.
+    // Perfetto UI bug requires flow events to be begin+end pairs.
+    PercettoDataSource::TraceTrackEvent(
+        category, sessions, TrackEvent::Type::TrackEvent_Type_TYPE_SLICE_BEGIN,
+        data->name, timestamp, data->track_uuid, data->extra, NULL);
+    PercettoDataSource::TraceTrackEvent(
+        category, sessions, TrackEvent::Type::TrackEvent_Type_TYPE_SLICE_END,
+        data->name, timestamp + 1, data->track_uuid, 0, NULL);
+  } else {
+    PercettoDataSource::TraceTrackEvent(
+        category, sessions, perfetto_type, data->name, timestamp,
+        data->track_uuid, data->extra, NULL);
+  }
+}
+
+extern "C"
+void percetto_event_extended(struct percetto_category* category,
+                             uint32_t sessions,
+                             int32_t type,
+                             const struct percetto_event_data* data,
+                             const struct percetto_event_extended* extended) {
+  TrackEvent::Type perfetto_type = static_cast<TrackEvent::Type>(type);
+  uint64_t timestamp;
+  if (PERCETTO_LIKELY(data->timestamp))
+    timestamp = data->timestamp;
+  else
+    timestamp = GetTimestampNs();
+  if (perfetto_type == TrackEvent::Type::TrackEvent_Type_TYPE_INSTANT &&
+      data->extra != 0) {
+    // TODO(jbates): remove when perfetto UI bug fixed for INSTANT+FLOW events.
+    // Perfetto UI bug requires flow events to be begin+end pairs.
+    PercettoDataSource::TraceTrackEvent(
+        category, sessions, TrackEvent::Type::TrackEvent_Type_TYPE_SLICE_BEGIN,
+        data->name, timestamp, data->track_uuid, data->extra, extended);
+    PercettoDataSource::TraceTrackEvent(
+        category, sessions, TrackEvent::Type::TrackEvent_Type_TYPE_SLICE_END,
+        data->name, timestamp + 1, data->track_uuid, 0, extended);
+  } else {
+    PercettoDataSource::TraceTrackEvent(
+        category, sessions, perfetto_type, data->name, timestamp,
+        data->track_uuid, data->extra, extended);
+  }
 }

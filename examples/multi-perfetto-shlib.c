@@ -26,6 +26,7 @@ int test_shlib_init(void) {
   return percetto_init(sizeof(categories) / sizeof(categories[0]), categories);
 }
 
-void test_shlib_func(void) {
+void test_shlib_func(int64_t flow_id) {
   TRACE_EVENT(shlib, "test_shlib_func");
+  TRACE_FLOW(shlib, "flow2", flow_id);
 }

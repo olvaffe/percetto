@@ -26,7 +26,7 @@
 PERCETTO_CATEGORY_DEFINE(cat, "Cat events", 0);
 PERCETTO_CATEGORY_DEFINE(dog, "Dog events", PERCETTO_CATEGORY_FLAG_SLOW);
 
-PERCETTO_TRACK_DEFINE(squirrels, 42);
+PERCETTO_TRACK_DEFINE(squirrels, PERCETTO_TRACK_COUNTER, 42);
 
 static int trace_init(void) {
   int ret;
@@ -47,9 +47,18 @@ static void test(void) {
   TRACE_EVENT(dog, "test2");
   const char* test3 = "instant";
   TRACE_INSTANT(dog, test3);
+
+  // Counter
   static int count = 1;
   count++;
   TRACE_COUNTER(dog, squirrels, count);
+
+  // Debug annotations
+  TRACE_DEBUG_DATA(dog, PERCETTO_BOOL("have_squirrels", count));
+  TRACE_DEBUG_DATA2(dog, "my_data", PERCETTO_DOUBLE("inverse", 1.0 / count),
+      PERCETTO_POINTER("p_count", &count));
+  TRACE_DEBUG_DATA3(dog, "more_data", PERCETTO_UINT("a", 2),
+      PERCETTO_INT("b", -5), PERCETTO_STRING("str", "debug string"));
 }
 
 int main(void) {

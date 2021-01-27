@@ -63,6 +63,8 @@ void run_perf_test(const char* name, int iterations) {
       event_duration * ns_per_sec,
       // Divide by 2 to account for begin + end events:
       event_duration * est_cycles_per_sec / 2.0);
+  TRACE_DEBUG_DATA(test,
+      PERCETTO_DOUBLE("ns per event", event_duration * ns_per_sec));
 }
 
 int main(void) {
