@@ -242,6 +242,8 @@ class PercettoDataSource : public perfetto::DataSource<PercettoDataSource> {
     }
 
     // Add process track.
+    // TODO(jbates) This only triggers if there are trace events on the main
+    //              thread.
     if (perfetto::base::GetThreadId() == s_percetto.init_thread) {
       auto process_track = perfetto::ProcessTrack::Current();
       auto packet =

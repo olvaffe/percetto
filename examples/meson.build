@@ -30,6 +30,14 @@ executable(
 )
 
 executable(
+  'threads',
+  'threads.cc',
+  dependencies: percetto_dep,
+  c_args : ['-fdata-sections', '-ffunction-sections', '-Os'],
+  link_args : ['-Wl,--gc-sections'],
+)
+
+executable(
   'size-bloat',
   'size-bloat.cc',
   dependencies: perfetto_sdk_dep,
