@@ -15,49 +15,25 @@
  * limitations under the License.
  */
 
+/**
+ * Provides a compile-time compatibility layer from Android atrace macros to
+ * the Percetto library. Better performance can be acheived by using the
+ * Percetto macros and library directly.
+ */
+
 #ifndef ATRACE_COMPAT_H
 #define ATRACE_COMPAT_H
 
-#include <inttypes.h>
-#include <stdbool.h>
 #include <stdint.h>
-#include <stdio.h>
-#include <sys/cdefs.h>
-#include <sys/types.h>
-#include <unistd.h>
-
-#ifdef __cplusplus
-#include <atomic>
-using std::atomic_bool;
-#else
-#include <stdatomic.h>
-#endif
 
 #include "percetto.h"
-
-#define CC_UNLIKELY(x) __builtin_expect(!!(x), 0)
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 /**
- * The ATRACE_TAG macro can be defined before including this header to trace
- * using one of the tags defined below.  It must be defined to one of the
- * following ATRACE_TAG_* macros.  The trace tag is used to filter tracing in
- * userland to avoid some of the runtime cost of tracing when it is not desired.
- *
- * Defining ATRACE_TAG to be ATRACE_TAG_ALWAYS will result in the tracing always
- * being enabled - this should ONLY be done for debug code, as userland tracing
- * has a performance cost even when the trace is not being recorded.  Defining
- * ATRACE_TAG to be ATRACE_TAG_NEVER or leaving ATRACE_TAG undefined will result
- * in the tracing always being disabled.
- *
- * ATRACE_TAG_HAL should be bitwise ORed with the relevant tags for tracing
- * within a hardware module.  For example a camera hardware module would set:
- * #define ATRACE_TAG  (ATRACE_TAG_CAMERA | ATRACE_TAG_HAL)
- *
- * Keep these in sync with frameworks/base/core/java/android/os/Trace.java.
+ * Copied from system/core/libcutils/include/cutils/trace.h
  */
 #define ATRACE_TAG_NEVER            0       // This tag is never enabled.
 #define ATRACE_TAG_ALWAYS           (1<<0)  // This tag is always enabled.

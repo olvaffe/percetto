@@ -169,28 +169,44 @@ struct percetto_event_debug_data {
   };
 };
 
-/* categories param must be a pointer to static storage. */
+/**
+ * Initialize the Percetto library.
+ * Not thread safe. Only one call is allowed.
+ * /categories/ param must be a pointer to static storage.
+ */
 int percetto_init(size_t category_count,
                   struct percetto_category** categories);
 
-/* up to PERCETTO_MAX_TRACKS tracks can be added for counters or flow events */
+/**
+ * Up to PERCETTO_MAX_TRACKS tracks can be added for counters or flow events.
+ * Tracks can never be removed for the lifetime of the process.
+ * Thread safe.
+ */
 int percetto_register_track(struct percetto_track* track);
 
-/* up to PERCETTO_MAX_GROUP_CATEGORIES can be added */
+/**
+ * Up to PERCETTO_MAX_GROUP_CATEGORIES can be added.
+ * Categories can never be removed for the lifetime of the process.
+ * Thread safe.
+ */
 int percetto_register_group_category(struct percetto_category* category);
 
+/** See TRACE_EVENT macros. */
 void percetto_event_begin(struct percetto_category* category,
                           uint32_t sessions,
                           const char* name);
 
+/** See TRACE_EVENT macros. */
 void percetto_event_end(struct percetto_category* category,
                         uint32_t sessions);
 
+/** See TRACE_INSTANT, TRACE_COUNTER, TRACE_ANY_WITH_ARGS macros. */
 void percetto_event(struct percetto_category* category,
                     uint32_t sessions,
                     int32_t type,
                     const struct percetto_event_data* data);
 
+/** See TRACE_DEBUG macros. */
 void percetto_event_extended(struct percetto_category* category,
                              uint32_t sessions,
                              int32_t type,

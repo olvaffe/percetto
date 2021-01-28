@@ -16,6 +16,7 @@
 
 #include "percetto.h"
 
+#include <array>
 #include <atomic>
 #include <perfetto.h>
 
@@ -33,18 +34,21 @@ using perfetto::protos::pbzero::TrackEventDescriptor;
 
 struct Percetto {
   int is_initialized;
-  perfetto::base::PlatformThreadId init_thread;
   struct percetto_category** categories;
-  struct percetto_category* groups[PERCETTO_MAX_GROUP_CATEGORIES];
-  struct percetto_track* tracks[PERCETTO_MAX_TRACKS];
   int category_count;
-  int group_count;
-  int track_count;
-  std::atomic_int trace_session;
+  std::array<std::atomic<struct percetto_category*>,
+                         PERCETTO_MAX_GROUP_CATEGORIES> groups;
+  std::array<std::atomic<struct percetto_track*>, PERCETTO_MAX_TRACKS> tracks;
   clockid_t trace_clock_id;
 };
 
 static Percetto s_percetto;
+
+// Tracks the last incremental update performed by each thread.
+// When this is less than s_target_incremental_update, it means
+// that the thread needs to clear and update the perfetto incremental state.
+static thread_local int s_committed_incremental_update = 0;
+static std::atomic_int s_target_incremental_update(0);
 
 static clockid_t DetermineSystemClockId() {
   // Determine clock to use (follows perfetto's preference for BOOTTIME).
@@ -69,6 +73,13 @@ class PercettoDataSource : public perfetto::DataSource<PercettoDataSource> {
   using Base = DataSource<PercettoDataSource>;
 
  public:
+  // Cause all threads to clear and update incremental perfetto data the next
+  // time they send a trace event.
+  // Thread safe.
+  static void KickIncrementalUpdates() {
+    s_target_incremental_update.fetch_add(1, std::memory_order_acq_rel);
+  }
+
   void OnSetup(const DataSourceBase::SetupArgs& args) override {
     PERFETTO_DCHECK(args.config);
     if (!args.config)
@@ -86,7 +97,7 @@ class PercettoDataSource : public perfetto::DataSource<PercettoDataSource> {
       }
     }
     UpdateGroupCategories();
-    ++s_percetto.trace_session;
+    KickIncrementalUpdates();
   }
 
   void OnStart(const DataSourceBase::StartArgs&) override {}
@@ -99,18 +110,36 @@ class PercettoDataSource : public perfetto::DataSource<PercettoDataSource> {
     UpdateGroupCategories();
   }
 
+  // Updates the active sessions for the given aggregate category group.
+  // Return false if the group is NULL.
+  // Thread safe. Multiple threads can call simultaneously for same index.
+  static bool UpdateGroupCategory(size_t group_index) {
+    struct percetto_category* group_category =
+        s_percetto.groups[group_index].load(std::memory_order_relaxed);
+    // A NULL slot signifies the end of the array. It's ok to race
+    // with the adding of group categories.
+    if (!group_category)
+      return false;
+
+    uint32_t new_sessions = 0;
+    for (uint32_t i = 0; i < group_category->group.count; ++i) {
+      uint8_t cat_index = group_category->group.child_ids[i];
+      assert(cat_index >= 0 && cat_index < s_percetto.category_count);
+      new_sessions |= s_percetto.categories[cat_index]->sessions;
+    }
+    group_category->sessions = new_sessions;
+    return true;
+  }
+
+  // Updates the active sessions for all aggregate category groups.
+  // Thread safe.
   static void UpdateGroupCategories() {
     // Now go through dynamic category groups and enable them if any of the
     // corresponding individual categories are enabled.
     // ie: group->sessions = (child1->sessions | child2->sessions);
-    for (int group = 0; group < s_percetto.group_count; ++group) {
-      uint32_t new_sessions = 0;
-      for (uint32_t i = 0; i < s_percetto.groups[group]->group.count; ++i) {
-        uint8_t cat_index = s_percetto.groups[group]->group.child_ids[i];
-        assert(cat_index >= 0 && cat_index < s_percetto.category_count);
-        new_sessions |= s_percetto.categories[cat_index]->sessions;
-      }
-      s_percetto.groups[group]->sessions = new_sessions;
+    for (size_t i = 0; i < s_percetto.groups.max_size(); ++i) {
+      if (!UpdateGroupCategory(i))
+        return;
     }
   }
 
@@ -133,6 +162,7 @@ class PercettoDataSource : public perfetto::DataSource<PercettoDataSource> {
     return Base::Register(dsd);
   }
 
+  // Thread safe.
   static inline void TraceTrackEvent(
       struct percetto_category* category,
       const uint32_t sessions,
@@ -142,7 +172,7 @@ class PercettoDataSource : public perfetto::DataSource<PercettoDataSource> {
       uint64_t track_uuid,
       int64_t extra,
       const struct percetto_event_extended* extended) {
-    bool do_once = NeedToSendTraceConfig();
+    bool do_once = SyncNeedToSendTraceConfig();
     TraceWithInstances(sessions, [&](Base::TraceContext ctx) {
       if (PERCETTO_UNLIKELY(do_once))
         OncePerTraceSession(ctx);
@@ -251,14 +281,14 @@ class PercettoDataSource : public perfetto::DataSource<PercettoDataSource> {
     return NewTracePacket(ctx, seq_flags, GetTimestampNs());
   }
 
-  static bool NeedToSendTraceConfig() {
-    // TODO(jbates): refactor this out of the per-event calls for better perf.
-    // This is per-thread
-    static thread_local int session = 0;
-    if (PERCETTO_LIKELY(session == s_percetto.trace_session))
-      return false;
-    session = s_percetto.trace_session;
-    return true;
+  // Thread safe. Returns whether the calling thread needs to update
+  // incremental perfetto state and syncs to s_target_incremental_update.
+  static inline bool SyncNeedToSendTraceConfig() {
+    int target_update = s_target_incremental_update.load(
+        std::memory_order_relaxed);
+    bool need_update = (s_committed_incremental_update != target_update);
+    s_committed_incremental_update = target_update;
+    return need_update;
   }
 
   static void OncePerTraceSession(Base::TraceContext& ctx) {
@@ -274,10 +304,8 @@ class PercettoDataSource : public perfetto::DataSource<PercettoDataSource> {
       track_defaults->set_track_uuid(default_track.uuid);
     }
 
-    // Add process track.
-    // TODO(jbates) This only triggers if there are trace events on the main
-    //              thread.
-    if (perfetto::base::GetThreadId() == s_percetto.init_thread) {
+    // Add process track (happens for every thread, but that's ok).
+    {
       auto process_track = perfetto::ProcessTrack::Current();
       auto packet =
           NewTracePacket(ctx, TracePacket::SEQ_NEEDS_INCREMENTAL_STATE);
@@ -293,17 +321,25 @@ class PercettoDataSource : public perfetto::DataSource<PercettoDataSource> {
 
     {
       // Add custom tracks (ie: for counters)
-      for (int i = 0; i < s_percetto.track_count; ++i) {
+      for (size_t i = 0; i < s_percetto.tracks.max_size(); ++i) {
+        struct percetto_track* track =
+            s_percetto.tracks[i].load(std::memory_order_relaxed);
+        // The first NULL slot signifies the end of the array. It's ok to race
+        // with the adding of tracks.
+        if (!track)
+          break;
+
         auto packet =
             NewTracePacket(ctx, TracePacket::SEQ_NEEDS_INCREMENTAL_STATE);
-        perfetto::Track perfetto_track(s_percetto.tracks[i]->uuid);
+        perfetto::Track perfetto_track(track->uuid);
         auto track_descriptor = packet->set_track_descriptor();
         perfetto_track.Serialize(track_descriptor);
-        track_descriptor->set_name(s_percetto.tracks[i]->name);
-        if (static_cast<percetto_track_type>(s_percetto.tracks[i]->type) ==
+        track_descriptor->set_name(track->name);
+        if (static_cast<percetto_track_type>(track->type) ==
             PERCETTO_TRACK_COUNTER)
           track_descriptor->set_counter();
       }
+
     }
   }
 };
@@ -325,12 +361,8 @@ int percetto_init(size_t category_count,
     return -3;
   }
   s_percetto.is_initialized = 1;
-  s_percetto.init_thread = perfetto::base::GetThreadId();
   s_percetto.categories = categories;
   s_percetto.category_count = category_count;
-  s_percetto.group_count = 0;
-  s_percetto.track_count = 0;
-  s_percetto.trace_session = 0;
   s_percetto.trace_clock_id = DetermineSystemClockId();
 
   perfetto::TracingInitArgs args;
@@ -342,25 +374,37 @@ int percetto_init(size_t category_count,
 
 extern "C"
 int percetto_register_group_category(struct percetto_category* category) {
-  if (s_percetto.group_count == PERCETTO_MAX_GROUP_CATEGORIES) {
-    fprintf(stderr, "%s error: no more group categories are allowed\n",
-            __func__);
-    return -1;
+  // Lock-free add to array.
+  for (size_t i = 0; i < s_percetto.groups.max_size(); ++i) {
+    struct percetto_category* null_category = NULL;
+    // Try to swap new category into this slot.
+    if (s_percetto.groups[i].compare_exchange_strong(null_category, category)) {
+      // Update the trace enabled state for this aggregate category.
+      PercettoDataSource::UpdateGroupCategory(i);
+      return 0;
+    }
   }
-  // TODO(jbates): thread safety
-  s_percetto.groups[s_percetto.group_count++] = category;
-  return 0;
+
+  fprintf(stderr, "%s error: no more group categories are allowed\n",
+          __func__);
+  return -1;
 }
 
 extern "C"
 int percetto_register_track(struct percetto_track* track) {
-  if (s_percetto.track_count == PERCETTO_MAX_TRACKS) {
-    fprintf(stderr, "%s error: no more tracks are allowed\n", __func__);
-    return -1;
+  // Lock-free add to array.
+  for (size_t i = 0; i < s_percetto.tracks.max_size(); ++i) {
+    struct percetto_track* null_track = NULL;
+    // Try to swap new track into this slot.
+    if (s_percetto.tracks[i].compare_exchange_strong(null_track, track)) {
+      // Update incremental state to send info about this track.
+      PercettoDataSource::KickIncrementalUpdates();
+      return 0;
+    }
   }
-  // TODO(jbates): thread safety
-  s_percetto.tracks[s_percetto.track_count++] = track;
-  return 0;
+
+  fprintf(stderr, "%s error: no more tracks are allowed\n", __func__);
+  return -1;
 }
 
 extern "C"
