@@ -71,11 +71,15 @@ int main(void) {
   const int enabled_event_count = 1000000;
   const int disabled_event_count = 100000000;
 
+  auto t1 = std::chrono::high_resolution_clock::now();
   int ret = trace_init();
   if (ret != 0) {
     fprintf(stderr, "failed to init tracing: %d\n", ret);
     return -1;
   }
+  auto t2 = std::chrono::high_resolution_clock::now();
+  std::chrono::duration<double> elapsed = t2 - t1;
+  fprintf(stderr, "percetto_init time: %f ms\n", elapsed.count() * 1000.0);
 
   wait_for_tracing(false);
 

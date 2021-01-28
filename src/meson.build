@@ -25,3 +25,15 @@ percetto_dep = declare_dependency(
   include_directories: '.',
   link_with: percetto_lib,
 )
+
+atrace_lib = static_library(
+  'atrace-compat',
+  'atrace-compat.c',
+  dependencies: percetto_dep,
+  c_args : ['-fvisibility=hidden', '-fdata-sections', '-ffunction-sections', '-Os'],
+)
+
+atrace_dep = declare_dependency(
+  include_directories: '.',
+  link_with: atrace_lib,
+)

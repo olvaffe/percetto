@@ -51,19 +51,27 @@ extern "C" {
 /* Declare each category in a header file. */
 #define PERCETTO_CATEGORY_DECLARE(category) \
     extern struct percetto_category g_percetto_category_##category
+
 /* Define each category in a compilation file with optional flags. */
 #define PERCETTO_CATEGORY_DEFINE(category, description, flags) \
     struct percetto_category g_percetto_category_##category = \
-        { PERCETTO_ATOMIC_INIT(0), #category, description, flags, { 0 } }
+        { PERCETTO_ATOMIC_INIT(0), #category, description, flags, \
+        { { 0 }, 0 }, { 0 } }
+
+/* /group/ is a percetto_category_group. */
+#define PERCETTO_CATEGORY_GROUP(group) \
+    { PERCETTO_ATOMIC_INIT(0), NULL, NULL, 0, group, { 0 } }
 
 /* Declare each track in a header file. */
 #define PERCETTO_TRACK_DECLARE(track) \
     extern struct percetto_track g_percetto_track_##track
+
 /* Define each track in a compilation file. For /track_type/ see
  * percetto_track_type. */
 #define PERCETTO_TRACK_DEFINE(track, track_type, track_uuid_ui64) \
     struct percetto_track g_percetto_track_##track = \
         { track_uuid_ui64, #track, (int32_t)track_type, { 0 } }
+
 #define PERCETTO_TRACK_PTR(track) (&g_percetto_track_##track)
 
 #define PERCETTO_CATEGORY_PTR(category) (&g_percetto_category_##category)
@@ -71,6 +79,9 @@ extern "C" {
 #define PERCETTO_CATEGORY_IS_ENABLED(category) \
     (!!g_percetto_category_##category.sessions)
 
+#define PERCETTO_MAX_CATEGORIES 256
+#define PERCETTO_MAX_GROUP_CATEGORIES 32
+#define PERCETTO_MAX_GROUP_SIZE 4
 #define PERCETTO_MAX_TRACKS 32
 
 enum percetto_event_type {
@@ -102,13 +113,22 @@ enum percetto_track_type {
   PERCETTO_TRACK_COUNTER,
 };
 
+struct percetto_category_group {
+  uint8_t child_ids[PERCETTO_MAX_GROUP_SIZE];
+  uint32_t count;
+};
+
 struct percetto_category {
   atomic_uint_fast32_t sessions;
   const char* name;
   const char* description;
   /* See PERCETTO_CATEGORY_FLAG_* */
   const uint64_t flags;
-  uint8_t _reserved[32];
+  /* If this is a group category, two or more of these child_ids are set to the
+   * indices of corresponding categories. Group categories can be registered at
+   * any time. */
+  struct percetto_category_group group;
+  uint64_t _reserved[3];
 };
 
 struct percetto_track {
@@ -156,6 +176,9 @@ int percetto_init(size_t category_count,
 /* up to PERCETTO_MAX_TRACKS tracks can be added for counters or flow events */
 int percetto_register_track(struct percetto_track* track);
 
+/* up to PERCETTO_MAX_GROUP_CATEGORIES can be added */
+int percetto_register_group_category(struct percetto_category* category);
+
 void percetto_event_begin(struct percetto_category* category,
                           uint32_t sessions,
                           const char* name);
@@ -181,9 +204,11 @@ static inline void percetto_cleanup_end(struct percetto_category** category) {
     percetto_event_end(*category, mask);
 }
 
+#define PERCETTO_LOAD_MASK_PTR(category) \
+    atomic_load_explicit(&(category)->sessions, memory_order_relaxed)
+
 #define PERCETTO_LOAD_MASK(category) \
-    atomic_load_explicit(&g_percetto_category_##category.sessions, \
-        memory_order_relaxed)
+    PERCETTO_LOAD_MASK_PTR(&g_percetto_category_##category)
 
 /* Trace the current scope. /str_name/ is only evaluated when tracing is
  * enabled. */
@@ -196,20 +221,26 @@ static inline void percetto_cleanup_end(struct percetto_category** category) {
         __attribute__((cleanup(percetto_cleanup_end), unused)) = \
             &g_percetto_category_##category
 
-#define TRACE_ANY_WITH_ARGS(type, category, track_id, ts, str_name, extra_value) \
+#define TRACE_ANY_WITH_ARGS_PTR(type, category, track_id, ts, str_name, \
+                                extra_value) \
     do { \
-      const uint32_t PERCETTO_UID(mask) = PERCETTO_LOAD_MASK(category); \
+      const uint32_t PERCETTO_UID(mask) = PERCETTO_LOAD_MASK_PTR(category); \
       if (PERCETTO_UNLIKELY(PERCETTO_UID(mask))) { \
         struct percetto_event_data PERCETTO_UID(data) = { \
-          .track_uuid = (track_id), \
-          .extra = (extra_value), \
+          .track_uuid = (uint64_t)(track_id), \
+          .extra = (int64_t)(extra_value), \
           .timestamp = (ts), \
           .name = (str_name) \
         }; \
-        percetto_event(&g_percetto_category_##category, PERCETTO_UID(mask), \
+        percetto_event(category, PERCETTO_UID(mask), \
             (int32_t)(type), &PERCETTO_UID(data)); \
       } \
     } while(0)
+
+#define TRACE_ANY_WITH_ARGS(type, category, track_id, ts, str_name, \
+                            extra_value) \
+    TRACE_ANY_WITH_ARGS_PTR(type, &g_percetto_category_##category, track_id, \
+        ts, str_name, extra_value)
 
 #define TRACE_EVENT_BEGIN(category, str_name) \
     TRACE_ANY_WITH_ARGS(PERCETTO_EVENT_BEGIN, category, 0, 0, str_name, 0)

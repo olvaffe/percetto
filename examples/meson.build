@@ -69,3 +69,12 @@ executable(
   link_args : ['-Wl,--gc-sections'],
   link_with : shlib,
 )
+
+executable(
+  'atrace',
+  'atrace.c',
+  'atrace2.c',
+  dependencies: atrace_dep,
+  c_args : ['-fdata-sections', '-ffunction-sections', '-Os'],
+  link_args : ['-Wl,--gc-sections'],
+)
