@@ -23,7 +23,8 @@ int test_shlib_init(void) {
   static struct percetto_category* categories[] = {
       PERCETTO_CATEGORY_PTR(shlib),
   };
-  return percetto_init(sizeof(categories) / sizeof(categories[0]), categories);
+  return percetto_init(sizeof(categories) / sizeof(categories[0]), categories,
+                       PERCETTO_CLOCK_DONT_CARE);
 }
 
 void test_shlib_func(int64_t flow_id) {

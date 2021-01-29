@@ -19,6 +19,7 @@
 
 #include <stddef.h>
 #include <stdint.h>
+#include <time.h>
 
 #ifdef __cplusplus
 #include <atomic>
@@ -84,6 +85,17 @@ extern "C" {
 #define PERCETTO_MAX_GROUP_SIZE 4
 #define PERCETTO_MAX_TRACKS 32
 
+enum percetto_clock {
+  /* Same as perfetto BuiltinClock. */
+  PERCETTO_CLOCK_DONT_CARE = 0,
+  PERCETTO_CLOCK_REALTIME = 1,
+  PERCETTO_CLOCK_REALTIME_COARSE = 2,
+  PERCETTO_CLOCK_MONOTONIC = 3,
+  PERCETTO_CLOCK_MONOTONIC_COARSE = 4,
+  PERCETTO_CLOCK_MONOTONIC_RAW = 5,
+  PERCETTO_CLOCK_BOOTTIME = 6,
+};
+
 enum percetto_event_type {
   /* Same as perfetto TrackEvent_Type. */
   PERCETTO_EVENT_UNSPECIFIED = 0,
@@ -144,6 +156,7 @@ struct percetto_event_data {
   uint64_t track_uuid;
   int64_t extra;
   /* Non-zero implies provided timestamp. */
+  // TODO(jbates) support specifying the clockid_t for this timestamp.
   uint64_t timestamp;
   const char* name;
 };
@@ -172,10 +185,25 @@ struct percetto_event_debug_data {
 /**
  * Initialize the Percetto library.
  * Not thread safe. Only one call is allowed.
+ *
  * /categories/ param must be a pointer to static storage.
+ * /clock_id/ is the clock that will be used for all trace event timestamps,
+ *   whether passed through the API or retrieved internally.
+ *   BUILTIN_CLOCK_BOOTTIME is the recommended choice, but some systems may not
+ *   support it. PERCETTO_CLOCK_DONT_CARE will try to use BOOTTIME and fall
+ *   back onto MONOTONIC. If you plan to manually set timestamps on any events,
+ *   you must confirm that the clock works (ie: by checking the result of
+ *   clock_gettime) and then pass in the corresponding PERCETTO_CLOCK enum
+ *   rather than using PERCETTO_CLOCK_DONT_CARE.
+ *
+ * Returns 0 on success or negative error code on failure. After failure, it is
+ * safe to continue the application and the calls to trace macros below will
+ * behave as if tracing is always disabled.
+ * TODO(jbates): document all error codes.
  */
 int percetto_init(size_t category_count,
-                  struct percetto_category** categories);
+                  struct percetto_category** categories,
+                  enum percetto_clock clock_id);
 
 /**
  * Up to PERCETTO_MAX_TRACKS tracks can be added for counters or flow events.

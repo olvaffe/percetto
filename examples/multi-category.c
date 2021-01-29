@@ -35,7 +35,7 @@ static int trace_init(void) {
       PERCETTO_CATEGORY_PTR(dog),
   };
   ret = percetto_init(sizeof(categories) / sizeof(categories[0]),
-                      categories);
+                      categories, PERCETTO_CLOCK_DONT_CARE);
   if (ret != 0)
     return ret;
   ret = percetto_register_track(PERCETTO_TRACK_PTR(squirrels));

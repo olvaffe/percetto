@@ -16,6 +16,7 @@
 
 #define _GNU_SOURCE  // for nanosleep
 
+#include <assert.h>
 #include <stdio.h>
 #include <time.h>
 #include <unistd.h>
@@ -31,7 +32,10 @@ static int trace_init(void) {
   static struct percetto_category* categories[] = {
       PERCETTO_CATEGORY_PTR(gfx),
   };
-  ret = percetto_init(sizeof(categories) / sizeof(categories[0]), categories);
+  struct timespec ts; (void)ts;
+  assert(clock_gettime(CLOCK_BOOTTIME, &ts) == 0);
+  ret = percetto_init(sizeof(categories) / sizeof(categories[0]), categories,
+                      PERCETTO_CLOCK_BOOTTIME);
   if (ret != 0)
     return ret;
   return percetto_register_track(PERCETTO_TRACK_PTR(gpu));

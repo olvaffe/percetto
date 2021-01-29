@@ -123,7 +123,7 @@ void atrace_init() {
     return;
 
   int ret = percetto_init(sizeof(g_categories) / sizeof(g_categories[0]),
-                          g_categories);
+                          g_categories, PERCETTO_CLOCK_DONT_CARE);
   if (ret < 0) {
     fprintf(stderr, "error: percetto_init failed: %d\n", ret);
     s_percetto_status = PERCETTO_STATUS_ERROR;

@@ -26,6 +26,7 @@ namespace {
 
 using perfetto::protos::gen::TrackDescriptor;
 using perfetto::protos::gen::TrackEventConfig;
+using perfetto::protos::pbzero::BuiltinClock;
 using perfetto::protos::pbzero::CounterDescriptor_Unit_UNIT_COUNT;
 using perfetto::protos::pbzero::DataSourceDescriptor;
 using perfetto::protos::pbzero::TracePacket;
@@ -40,6 +41,7 @@ struct Percetto {
                          PERCETTO_MAX_GROUP_CATEGORIES> groups;
   std::array<std::atomic<struct percetto_track*>, PERCETTO_MAX_TRACKS> tracks;
   clockid_t trace_clock_id;
+  BuiltinClock perfetto_clock;
 };
 
 static Percetto s_percetto;
@@ -50,17 +52,47 @@ static Percetto s_percetto;
 static thread_local int s_committed_incremental_update = 0;
 static std::atomic_int s_target_incremental_update(0);
 
-static clockid_t DetermineSystemClockId() {
-  // Determine clock to use (follows perfetto's preference for BOOTTIME).
+static bool CheckSystemClock(clockid_t system_clock) {
   struct timespec ts = {};
-  int result = clock_gettime(CLOCK_BOOTTIME, &ts);
-  return (result == 0 ? CLOCK_BOOTTIME : CLOCK_MONOTONIC);
+  return (clock_gettime(system_clock, &ts) == 0);
 }
 
-static inline perfetto::protos::pbzero::BuiltinClock GetPerfettoClockId() {
-  return s_percetto.trace_clock_id == CLOCK_MONOTONIC ?
-    perfetto::protos::pbzero::BUILTIN_CLOCK_MONOTONIC :
-    perfetto::protos::pbzero::BUILTIN_CLOCK_BOOTTIME;
+static clockid_t DetermineClockId(BuiltinClock* result) {
+  // Determine clock to use (follows perfetto's preference for BOOTTIME).
+  if (CheckSystemClock(CLOCK_BOOTTIME)) {
+    *result = perfetto::protos::pbzero::BUILTIN_CLOCK_BOOTTIME;
+    return CLOCK_BOOTTIME;
+  }
+  if (CheckSystemClock(CLOCK_MONOTONIC)) {
+    *result = perfetto::protos::pbzero::BUILTIN_CLOCK_MONOTONIC;
+    return CLOCK_MONOTONIC;
+  }
+  *result = perfetto::protos::pbzero::BUILTIN_CLOCK_REALTIME;
+  return CLOCK_REALTIME;
+}
+
+static clockid_t GetClockIdFrom(BuiltinClock perfetto_clock,
+                                BuiltinClock* result) {
+  switch(perfetto_clock) {
+    default:
+      *result = perfetto::protos::pbzero::BUILTIN_CLOCK_REALTIME;
+      return CLOCK_REALTIME;
+    case perfetto::protos::pbzero::BUILTIN_CLOCK_REALTIME_COARSE:
+      *result = perfetto::protos::pbzero::BUILTIN_CLOCK_REALTIME_COARSE;
+      return CLOCK_REALTIME_COARSE;
+    case perfetto::protos::pbzero::BUILTIN_CLOCK_MONOTONIC:
+      *result = perfetto::protos::pbzero::BUILTIN_CLOCK_MONOTONIC;
+      return CLOCK_MONOTONIC;
+    case perfetto::protos::pbzero::BUILTIN_CLOCK_MONOTONIC_COARSE:
+      *result = perfetto::protos::pbzero::BUILTIN_CLOCK_MONOTONIC_COARSE;
+      return CLOCK_MONOTONIC_COARSE;
+    case perfetto::protos::pbzero::BUILTIN_CLOCK_MONOTONIC_RAW:
+      *result = perfetto::protos::pbzero::BUILTIN_CLOCK_MONOTONIC_RAW;
+      return CLOCK_MONOTONIC_RAW;
+    case perfetto::protos::pbzero::BUILTIN_CLOCK_BOOTTIME:
+      *result = perfetto::protos::pbzero::BUILTIN_CLOCK_BOOTTIME;
+      return CLOCK_BOOTTIME;
+  }
 }
 
 static inline uint64_t GetTimestampNs() {
@@ -268,9 +300,9 @@ class PercettoDataSource : public perfetto::DataSource<PercettoDataSource> {
     packet->set_timestamp(timestamp);
     packet->set_sequence_flags(seq_flags);
     // Trace processor may not understand trace defaults yet, so we do this.
-    if (PERCETTO_UNLIKELY(GetPerfettoClockId() !=
+    if (PERCETTO_UNLIKELY(s_percetto.perfetto_clock !=
         perfetto::protos::pbzero::BUILTIN_CLOCK_BOOTTIME))
-      packet->set_timestamp_clock_id(GetPerfettoClockId());
+      packet->set_timestamp_clock_id(s_percetto.perfetto_clock);
 
     return packet;
   }
@@ -298,7 +330,7 @@ class PercettoDataSource : public perfetto::DataSource<PercettoDataSource> {
       auto packet =
           NewTracePacket(ctx, TracePacket::SEQ_INCREMENTAL_STATE_CLEARED);
       auto defaults = packet->set_trace_packet_defaults();
-      defaults->set_timestamp_clock_id(GetPerfettoClockId());
+      defaults->set_timestamp_clock_id(s_percetto.perfetto_clock);
 
       auto track_defaults = defaults->set_track_event_defaults();
       track_defaults->set_track_uuid(default_track.uuid);
@@ -351,7 +383,8 @@ PERFETTO_DEFINE_DATA_SOURCE_STATIC_MEMBERS(PercettoDataSource);
 
 extern "C"
 int percetto_init(size_t category_count,
-                  struct percetto_category** categories) {
+                  struct percetto_category** categories,
+                  enum percetto_clock clock_id) {
   if (s_percetto.is_initialized) {
     fprintf(stderr, "%s error: already initialized\n", __func__);
     return -2;
@@ -360,10 +393,24 @@ int percetto_init(size_t category_count,
     fprintf(stderr, "%s error: too many categories\n", __func__);
     return -3;
   }
+
+  clockid_t system_clock = 0;
+  BuiltinClock perfetto_clock = perfetto::protos::pbzero::BUILTIN_CLOCK_UNKNOWN;
+  if (clock_id == PERCETTO_CLOCK_DONT_CARE)
+    system_clock = DetermineClockId(&perfetto_clock);
+  else
+    system_clock = GetClockIdFrom(static_cast<BuiltinClock>(clock_id),
+                                  &perfetto_clock);
+  if (!CheckSystemClock(system_clock)) {
+    fprintf(stderr, "%s error: system clock error\n", __func__);
+    return -4;
+  }
+
   s_percetto.is_initialized = 1;
   s_percetto.categories = categories;
   s_percetto.category_count = category_count;
-  s_percetto.trace_clock_id = DetermineSystemClockId();
+  s_percetto.trace_clock_id = system_clock;
+  s_percetto.perfetto_clock = perfetto_clock;
 
   perfetto::TracingInitArgs args;
   args.backends = perfetto::kSystemBackend;
