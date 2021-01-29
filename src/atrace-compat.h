@@ -21,8 +21,8 @@
  * Percetto macros and library directly.
  */
 
-#ifndef ATRACE_COMPAT_H
-#define ATRACE_COMPAT_H
+#ifndef PERCETTO_ATRACE_COMPAT_H
+#define PERCETTO_ATRACE_COMPAT_H
 
 #include <stdint.h>
 
@@ -82,12 +82,24 @@ extern "C" {
 void atrace_init();
 
 struct percetto_category* atrace_create_category(uint64_t tags);
+uint64_t atrace_create_counter(const char* name);
 
 #define ATRACE_ANY(type, name, extra) do { \
         static struct percetto_category* PERCETTO_UID(cat) = NULL; \
         if (PERCETTO_UNLIKELY(!PERCETTO_UID(cat))) \
             PERCETTO_UID(cat) = atrace_create_category(ATRACE_TAG); \
         TRACE_ANY_WITH_ARGS_PTR(type, PERCETTO_UID(cat), 0, 0, name, extra); \
+    } while (0)
+
+#define ATRACE_COUNTER(name, value) do { \
+        static struct percetto_category* PERCETTO_UID(cat) = NULL; \
+        static uint64_t PERCETTO_UID(trk) = 0; \
+        if (PERCETTO_UNLIKELY(!PERCETTO_UID(cat))) { \
+            PERCETTO_UID(cat) = atrace_create_category(ATRACE_TAG); \
+            PERCETTO_UID(trk) = atrace_create_counter(name); \
+        } \
+        TRACE_ANY_WITH_ARGS_PTR(PERCETTO_EVENT_COUNTER, PERCETTO_UID(cat), \
+            PERCETTO_UID(trk), 0, NULL, value); \
     } while (0)
 
 #define ATRACE_BEGIN(name) ATRACE_ANY(PERCETTO_EVENT_BEGIN, name, 0)
@@ -100,12 +112,12 @@ struct percetto_category* atrace_create_category(uint64_t tags);
 #define ATRACE_ASYNC_END(name, cookie) \
     ATRACE_ANY(PERCETTO_EVENT_INSTANT, name, cookie)
 
-#define ATRACE_INT(name, value) // TODO
+#define ATRACE_INT(name, value) ATRACE_COUNTER(name, value)
 
-#define ATRACE_INT64(name, value) // TODO
+#define ATRACE_INT64(name, value) ATRACE_COUNTER(name, value)
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif // ATRACE_COMPAT_H
+#endif // PERCETTO_ATRACE_COMPAT_H

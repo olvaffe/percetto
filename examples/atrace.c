@@ -29,6 +29,7 @@ int main(void) {
   for (;;) {
     for (int i = 0; i < 10; i++) {
       ATRACE_BEGIN(__func__);
+      ATRACE_INT("i", i);
       atrace2();
       ATRACE_END();
     }

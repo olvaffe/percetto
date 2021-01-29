@@ -2,6 +2,8 @@
 #include "atrace-compat.h"
 
 void atrace2(void) {
+  int64_t num = 8000000000;
+  ATRACE_INT64("num", num);
   ATRACE_BEGIN(__func__);
   ATRACE_END();
 }

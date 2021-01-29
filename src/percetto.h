@@ -135,7 +135,7 @@ struct percetto_category {
   const char* name;
   const char* description;
   /* See PERCETTO_CATEGORY_FLAG_* */
-  const uint64_t flags;
+  uint64_t flags;
   /* If this is a group category, two or more of these child_ids are set to the
    * indices of corresponding categories. Group categories can be registered at
    * any time. */
@@ -144,7 +144,7 @@ struct percetto_category {
 };
 
 struct percetto_track {
-  const uint64_t uuid;
+  uint64_t uuid;
   const char* name;
   /* See percetto_track_type */
   int32_t type;
@@ -207,14 +207,14 @@ int percetto_init(size_t category_count,
 /**
  * Up to PERCETTO_MAX_TRACKS tracks can be added for counters or flow events.
  * Tracks can never be removed for the lifetime of the process.
- * Thread safe.
+ * Thread safe. Can be called from any thread after percetto_init.
  */
 int percetto_register_track(struct percetto_track* track);
 
 /**
  * Up to PERCETTO_MAX_GROUP_CATEGORIES can be added.
  * Categories can never be removed for the lifetime of the process.
- * Thread safe.
+ * Thread safe. Can be called from any thread after percetto_init.
  */
 int percetto_register_group_category(struct percetto_category* category);
 
