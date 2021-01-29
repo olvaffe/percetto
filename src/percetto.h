@@ -156,7 +156,6 @@ struct percetto_event_data {
   uint64_t track_uuid;
   int64_t extra;
   /* Non-zero implies provided timestamp. */
-  // TODO(jbates) support specifying the clockid_t for this timestamp.
   uint64_t timestamp;
   const char* name;
 };
