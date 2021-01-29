@@ -317,37 +317,37 @@ static inline void percetto_cleanup_end(struct percetto_category** category) {
 /* Debug annotation macros */
 
 #define PERCETTO_BOOL(str_name, value) { \
-      { .type = PERCETTO_EVENT_EXTENDED_DEBUG_DATA, .next = NULL }, \
+      .extended = { .type = PERCETTO_EVENT_EXTENDED_DEBUG_DATA, .next = NULL }, \
       .type = PERCETTO_EVENT_DEBUG_DATA_BOOL, \
       .name = str_name, .bool_value = (uint32_t)!!(value) \
     }
 
 #define PERCETTO_UINT(str_name, value) { \
-      { .type = PERCETTO_EVENT_EXTENDED_DEBUG_DATA, .next = NULL }, \
+      .extended = { .type = PERCETTO_EVENT_EXTENDED_DEBUG_DATA, .next = NULL }, \
       .type = PERCETTO_EVENT_DEBUG_DATA_UINT, \
       .name = str_name, .uint_value = (value) \
     }
 
 #define PERCETTO_INT(str_name, value) { \
-      { .type = PERCETTO_EVENT_EXTENDED_DEBUG_DATA, .next = NULL }, \
+      .extended = { .type = PERCETTO_EVENT_EXTENDED_DEBUG_DATA, .next = NULL }, \
       .type = PERCETTO_EVENT_DEBUG_DATA_INT, \
       .name = str_name, .int_value = (value) \
     }
 
 #define PERCETTO_DOUBLE(str_name, value) { \
-      { .type = PERCETTO_EVENT_EXTENDED_DEBUG_DATA, .next = NULL }, \
+      .extended = { .type = PERCETTO_EVENT_EXTENDED_DEBUG_DATA, .next = NULL }, \
       .type = PERCETTO_EVENT_DEBUG_DATA_DOUBLE, \
       .name = str_name, .double_value = (value) \
     }
 
 #define PERCETTO_STRING(str_name, str_value) { \
-      { .type = PERCETTO_EVENT_EXTENDED_DEBUG_DATA, .next = NULL }, \
+      .extended = { .type = PERCETTO_EVENT_EXTENDED_DEBUG_DATA, .next = NULL }, \
       .type = PERCETTO_EVENT_DEBUG_DATA_STRING, \
       .name = str_name, .string_value = (str_value) \
     }
 
 #define PERCETTO_POINTER(str_name, ptr) { \
-      { .type = PERCETTO_EVENT_EXTENDED_DEBUG_DATA, .next = NULL }, \
+      .extended = { .type = PERCETTO_EVENT_EXTENDED_DEBUG_DATA, .next = NULL }, \
       .type = PERCETTO_EVENT_DEBUG_DATA_POINTER, \
       .name = str_name, .pointer_value = (uintptr_t)(ptr) \
     }
