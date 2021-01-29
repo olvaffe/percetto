@@ -28,6 +28,15 @@ project(
 
 threads_dep = dependency('threads')
 
+if (meson.is_subproject())
+  # for some reason the default is not picked up when
+  # this is a subproject
+  add_project_arguments('-std=c++2a', language : 'cpp')
+endif
+
 subdir('perfetto-sdk')
 subdir('src')
-subdir('examples')
+if (not meson.is_subproject())
+  # no need for the examples when this is a sub project
+  subdir('examples')
+endif
