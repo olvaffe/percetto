@@ -44,7 +44,7 @@ static int trace_init(void) {
 static void test(void) {
   if (PERCETTO_CATEGORY_IS_ENABLED(gfx)) {
     // Fabricate some GPU-like timings that have been gathered up for tracing.
-    struct timespec ts = {};
+    struct timespec ts = {0};
     clock_gettime(CLOCK_BOOTTIME, &ts);
     uint64_t ns = ts.tv_sec * 1000000000LL + ts.tv_nsec;
     // Move timestamp back by 16 ms to when the fake GPU events began.
