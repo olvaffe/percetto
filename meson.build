@@ -23,7 +23,7 @@ project(
                     'warning_level=2',
                     'werror=true',
                     'c_std=c11',
-                    'cpp_std=c++11'],
+                    'cpp_std=c++2a'],
 )
 
 threads_dep = dependency('threads')
