@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "atrace-compat.h"
+#include "percetto-atrace.h"
 
 #include <assert.h>
 #include <pthread.h>

@@ -1,5 +1,5 @@
 #define ATRACE_TAG (ATRACE_TAG_CAMERA | ATRACE_TAG_HAL | ATRACE_TAG_INPUT | ATRACE_TAG_VIEW)
-#include "atrace-compat.h"
+#include "percetto-atrace.h"
 
 void atrace2(void) {
   int64_t num = 8000000000;

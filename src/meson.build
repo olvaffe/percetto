@@ -19,6 +19,7 @@ percetto_lib = static_library(
   'perfetto-port.cc',
   dependencies: perfetto_sdk_dep,
   cpp_args : ['-fdata-sections', '-ffunction-sections', '-Os'],
+  install : true,
 )
 
 percetto_dep = declare_dependency(
@@ -27,13 +28,16 @@ percetto_dep = declare_dependency(
 )
 
 atrace_lib = static_library(
-  'atrace-compat',
-  'atrace-compat.c',
+  'percetto-atrace',
+  'percetto-atrace.c',
   dependencies: percetto_dep,
   c_args : ['-fvisibility=hidden', '-fdata-sections', '-ffunction-sections', '-Os'],
+  install : true,
 )
 
 atrace_dep = declare_dependency(
   include_directories: '.',
   link_with: atrace_lib,
 )
+
+install_headers('percetto.h', 'percetto-atrace.h')

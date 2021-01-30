@@ -33,7 +33,7 @@ Shows various types of trace events and the use of multiple categories.
 ### [atrace.c](examples/atrace.c)
 
 Shows how to use the Android ATRACE macro compatibility API found in
-[atrace-compat.h](src/atrace-compat.h).
+[percetto-atrace.h](src/percetto-atrace.h).
 
 ### [timestamps.c](examples/timestamps.c)
 

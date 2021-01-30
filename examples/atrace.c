@@ -21,7 +21,7 @@
 #include <time.h>
 
 #define ATRACE_TAG ATRACE_TAG_GRAPHICS
-#include "atrace-compat.h"
+#include "percetto-atrace.h"
 
 extern void atrace2(void);
 
