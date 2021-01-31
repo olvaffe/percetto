@@ -204,7 +204,7 @@ class PercettoDataSource : public perfetto::DataSource<PercettoDataSource> {
       uint64_t track_uuid,
       int64_t extra,
       const struct percetto_event_extended* extended) {
-    bool do_once = SyncNeedToSendTraceConfig();
+    bool do_once = NeedIncrementalUpdate();
     TraceWithInstances(sessions, [&](Base::TraceContext ctx) {
       if (PERCETTO_UNLIKELY(do_once))
         OncePerTraceSession(ctx);
@@ -315,15 +315,19 @@ class PercettoDataSource : public perfetto::DataSource<PercettoDataSource> {
 
   // Thread safe. Returns whether the calling thread needs to update
   // incremental perfetto state and syncs to s_target_incremental_update.
-  static inline bool SyncNeedToSendTraceConfig() {
+  static inline bool NeedIncrementalUpdate() {
     int target_update = s_target_incremental_update.load(
         std::memory_order_relaxed);
-    bool need_update = (s_committed_incremental_update != target_update);
-    s_committed_incremental_update = target_update;
-    return need_update;
+    return s_committed_incremental_update != target_update;
+  }
+
+  static inline void SetDoingIncrementalUpdate() {
+    s_committed_incremental_update = s_target_incremental_update.load(
+        std::memory_order_acquire);
   }
 
   static void OncePerTraceSession(Base::TraceContext& ctx) {
+    SetDoingIncrementalUpdate();
     auto default_track = perfetto::ThreadTrack::Current();
 
     {
