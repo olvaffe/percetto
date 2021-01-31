@@ -123,7 +123,10 @@ class PercettoDataSource : public perfetto::DataSource<PercettoDataSource> {
     if (!ok)
       return;
     for (int i = 0; i < s_percetto.category_count; i++) {
-      if (IsCategoryEnabled(*s_percetto.categories[i], config)) {
+      std::array<const char*, PERCETTO_MAX_CATEGORY_TAGS> tags;
+      std::copy(std::begin(s_percetto.categories[i]->tags),
+                std::end(s_percetto.categories[i]->tags), std::begin(tags));
+      if (IsCategoryEnabled(s_percetto.categories[i]->name, tags, config)) {
         std::atomic_fetch_or(&s_percetto.categories[i]->sessions,
                              1 << args.internal_instance_index);
       }
@@ -184,10 +187,10 @@ class PercettoDataSource : public perfetto::DataSource<PercettoDataSource> {
       auto cat = ted->add_available_categories();
       cat->set_name(s_percetto.categories[i]->name);
       cat->set_description(s_percetto.categories[i]->description);
-      if (s_percetto.categories[i]->flags & PERCETTO_CATEGORY_FLAG_SLOW)
-        cat->add_tags("slow");
-      if (s_percetto.categories[i]->flags & PERCETTO_CATEGORY_FLAG_DEBUG)
-        cat->add_tags("debug");
+      for (const char* tag : s_percetto.categories[i]->tags) {
+        if (tag)
+          cat->add_tags(tag);
+      }
     }
     dsd.set_track_event_descriptor_raw(ted.SerializeAsString());
 

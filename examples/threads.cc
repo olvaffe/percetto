@@ -22,7 +22,7 @@
 
 #include "percetto.h"
 
-PERCETTO_CATEGORY_DEFINE(test, "Test events", 0);
+PERCETTO_CATEGORY_DEFINE(test, "Test events");
 
 static void test() {
   for (;;) {
@@ -49,6 +49,9 @@ int main(void) {
   }
 
   // runs continuously
+  for (int i = 0; i < num_threads; ++i) {
+    threads[i].join();
+  }
 
   return 0;
 }

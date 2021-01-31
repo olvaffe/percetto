@@ -17,7 +17,7 @@
 #include "percetto.h"
 #include "multi-perfetto-shlib.h"
 
-PERCETTO_CATEGORY_DEFINE(shlib, "Shared lib test events", 0);
+PERCETTO_CATEGORY_DEFINE(shlib, "Shared lib test events");
 
 int test_shlib_init(void) {
   static struct percetto_category* categories[] = {

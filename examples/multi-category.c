@@ -23,8 +23,9 @@
 
 #include "multi-category.h"
 
-PERCETTO_CATEGORY_DEFINE(cat, "Cat events", 0);
-PERCETTO_CATEGORY_DEFINE(dog, "Dog events", PERCETTO_CATEGORY_FLAG_SLOW);
+PERCETTO_CATEGORY_DEFINE(cat, "Cat events");
+PERCETTO_CATEGORY_DEFINE_SLOW(dog, "Dog events");
+PERCETTO_CATEGORY_DEFINE_WITH_TAGS(dbg, "Debug events", "debug", "mytag");
 
 PERCETTO_TRACK_DEFINE(squirrels, PERCETTO_TRACK_COUNTER, 42);
 

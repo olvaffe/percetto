@@ -17,10 +17,10 @@
 #ifndef PERFETTO_PORT_H
 #define PERFETTO_PORT_H
 
-#include "percetto.h"
 #include "perfetto.h"
 
-bool IsCategoryEnabled(const percetto_category& category,
+bool IsCategoryEnabled(const char* category,
+                       const std::array<const char*, 4>& tags,
                        const perfetto::protos::gen::TrackEventConfig& config);
 
 #endif /* PERFETTO_PORT_H */

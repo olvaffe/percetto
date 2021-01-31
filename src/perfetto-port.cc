@@ -55,16 +55,13 @@ static bool NameMatchesPatternList(const std::vector<std::string>& patterns,
 
 }  // anonymous namespace
 
-bool IsCategoryEnabled(const percetto_category& category,
+bool IsCategoryEnabled(const char* name,
+                       const std::array<const char*, 4>& tags,
                        const TrackEventConfig& config) {
   // Ported from TrackEventInternal::IsCategoryEnabled.
   auto has_matching_tag = [&](std::function<bool(const char*)> matcher) {
-    if (category.flags & PERCETTO_CATEGORY_FLAG_SLOW) {
-      if (matcher("slow"))
-        return true;
-    }
-    if (category.flags & PERCETTO_CATEGORY_FLAG_DEBUG) {
-      if (matcher("debug"))
+    for (const char* tag : tags) {
+      if (tag && matcher(tag))
         return true;
     }
     return false;
@@ -75,7 +72,7 @@ bool IsCategoryEnabled(const percetto_category& category,
       {MatchType::kExact, MatchType::kPattern}};
   for (auto match_type : match_types) {
     // 1. Enabled categories.
-    if (NameMatchesPatternList(config.enabled_categories(), category.name,
+    if (NameMatchesPatternList(config.enabled_categories(), name,
                                match_type)) {
       return true;
     }
@@ -88,7 +85,7 @@ bool IsCategoryEnabled(const percetto_category& category,
     }
 
     // 3. Disabled categories.
-    if (NameMatchesPatternList(config.disabled_categories(), category.name,
+    if (NameMatchesPatternList(config.disabled_categories(), name,
                                match_type)) {
       return false;
     }

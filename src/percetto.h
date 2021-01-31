@@ -44,31 +44,36 @@ extern "C" {
 #define PERCETTO_UID2(a, b) PERCETTO_UID3(a, b)
 #define PERCETTO_UID(prefix) PERCETTO_UID2(prefix, __LINE__)
 
-/* This category must be explicitly requested, disabled by default. */
-#define PERCETTO_CATEGORY_FLAG_SLOW   (1 << 0)
-/* More verbose debug data, disabled by default. */
-#define PERCETTO_CATEGORY_FLAG_DEBUG  (1 << 1)
-
-/* Optionally declare each category in a header file. */
+/** Optionally declare each category in a header file. */
 #define PERCETTO_CATEGORY_DECLARE(category) \
     extern struct percetto_category g_percetto_category_##category
 
-/* Define each category in a compilation file with optional flags. */
-#define PERCETTO_CATEGORY_DEFINE(category, description, flags) \
+/** Define each category with tags in a compilation file. */
+#define PERCETTO_CATEGORY_DEFINE_WITH_TAGS(category, description, ...) \
     struct percetto_category g_percetto_category_##category = \
-        { PERCETTO_ATOMIC_INIT(0), #category, description, flags, \
+        { PERCETTO_ATOMIC_INIT(0), #category, description, {__VA_ARGS__}, \
         { { 0 }, 0 }, { 0 } }
 
-/* /group/ is a percetto_category_group. */
-#define PERCETTO_CATEGORY_GROUP(group) \
-    { PERCETTO_ATOMIC_INIT(0), NULL, NULL, 0, group, { 0 } }
+/** Define a category in a compilation file. */
+#define PERCETTO_CATEGORY_DEFINE(category, description) \
+    PERCETTO_CATEGORY_DEFINE_WITH_TAGS(category, description, NULL)
 
-/* Declare each track in a header file. */
+/** Define a slow category (disabled by default) in a compilation file. */
+#define PERCETTO_CATEGORY_DEFINE_SLOW(category, description) \
+    PERCETTO_CATEGORY_DEFINE_WITH_TAGS(category, description, "slow")
+
+/** /group/ is a percetto_category_group. */
+#define PERCETTO_GROUP_CATEGORY(group) (struct percetto_category) \
+    { PERCETTO_ATOMIC_INIT(0), NULL, NULL, { NULL }, group, { 0 } }
+
+/** Declare each track in a header file. */
 #define PERCETTO_TRACK_DECLARE(track) \
     extern struct percetto_track g_percetto_track_##track
 
-/* Define each track in a compilation file. For /track_type/ see
- * percetto_track_type. */
+/**
+ * Define each track in a compilation file. For /track_type/ see
+ * percetto_track_type.
+ */
 #define PERCETTO_TRACK_DEFINE(track, track_type, track_uuid_ui64) \
     struct percetto_track g_percetto_track_##track = \
         { track_uuid_ui64, #track, (int32_t)track_type, { 0 } }
@@ -83,6 +88,7 @@ extern "C" {
 #define PERCETTO_MAX_CATEGORIES 256
 #define PERCETTO_MAX_GROUP_CATEGORIES 32
 #define PERCETTO_MAX_GROUP_SIZE 4
+#define PERCETTO_MAX_CATEGORY_TAGS 4
 #define PERCETTO_MAX_TRACKS 32
 
 enum percetto_clock {
@@ -126,6 +132,8 @@ enum percetto_track_type {
 };
 
 struct percetto_category_group {
+  /* For group categories, two or more of these child_ids are set to the
+   * indices of corresponding categories. */
   uint8_t child_ids[PERCETTO_MAX_GROUP_SIZE];
   uint32_t count;
 };
@@ -134,11 +142,8 @@ struct percetto_category {
   atomic_uint_fast32_t sessions;
   const char* name;
   const char* description;
-  /* See PERCETTO_CATEGORY_FLAG_* */
-  uint64_t flags;
-  /* If this is a group category, two or more of these child_ids are set to the
-   * indices of corresponding categories. Group categories can be registered at
-   * any time. */
+  const char* tags[PERCETTO_MAX_CATEGORY_TAGS];
+  /* Only used for group categories. */
   struct percetto_category_group group;
   uint64_t _reserved[3];
 };
@@ -253,8 +258,10 @@ static inline void percetto_cleanup_end(struct percetto_category** category) {
 #define PERCETTO_LOAD_MASK(category) \
     PERCETTO_LOAD_MASK_PTR(&g_percetto_category_##category)
 
-/* Trace the current scope. /str_name/ is only evaluated when tracing is
- * enabled. */
+/**
+ * Trace the current scope. /str_name/ is only evaluated when tracing is
+ * enabled.
+ */
 #define TRACE_EVENT(category, str_name) \
     const uint32_t PERCETTO_UID(mask) = PERCETTO_LOAD_MASK(category); \
     if (PERCETTO_UNLIKELY(PERCETTO_UID(mask))) \

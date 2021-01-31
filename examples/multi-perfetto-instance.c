@@ -21,7 +21,7 @@
 #include "percetto.h"
 #include "multi-perfetto-shlib.h"
 
-PERCETTO_CATEGORY_DEFINE(test, "Test events", 0);
+PERCETTO_CATEGORY_DEFINE(test, "Test events");
 
 static int trace_init(void) {
   static struct percetto_category* categories[] = {

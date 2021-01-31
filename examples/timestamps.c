@@ -23,7 +23,7 @@
 
 #include "percetto.h"
 
-PERCETTO_CATEGORY_DEFINE(gfx, "Graphics events", 0);
+PERCETTO_CATEGORY_DEFINE(gfx, "Graphics events");
 
 PERCETTO_TRACK_DEFINE(gpu, PERCETTO_TRACK_NORMAL, 13);
 
