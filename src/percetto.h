@@ -49,7 +49,7 @@ extern "C" {
 /* More verbose debug data, disabled by default. */
 #define PERCETTO_CATEGORY_FLAG_DEBUG  (1 << 1)
 
-/* Declare each category in a header file. */
+/* Optionally declare each category in a header file. */
 #define PERCETTO_CATEGORY_DECLARE(category) \
     extern struct percetto_category g_percetto_category_##category
 
