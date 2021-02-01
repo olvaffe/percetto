@@ -16,8 +16,8 @@
 project(
   'percetto',
   ['c', 'cpp'],
-  version: '0.1',
-  license: 'MIT',
+  version: '0.0.4',
+  license: 'Apache-2.0',
   meson_version: '>=0.54.0',
   default_options: ['buildtype=debug',
                     'warning_level=2',

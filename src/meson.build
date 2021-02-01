@@ -27,11 +27,12 @@ percetto_dep = declare_dependency(
   link_with: percetto_lib,
 )
 
-atrace_lib = static_library(
+atrace_lib = shared_library(
   'percetto-atrace',
   'percetto-atrace.c',
   dependencies: percetto_dep,
   c_args : ['-fvisibility=hidden', '-fdata-sections', '-ffunction-sections', '-Os'],
+  link_args : ['-Wl,--gc-sections', '-Wl,--exclude-libs,ALL'],
   install : true,
 )
 
@@ -41,3 +42,7 @@ atrace_dep = declare_dependency(
 )
 
 install_headers('percetto.h', 'percetto-atrace.h')
+
+pkg = import('pkgconfig')
+pkg.generate(percetto_lib, description : 'C API wrapper library for perfetto')
+pkg.generate(atrace_lib, description : 'Android ATRACE wrapper library for percetto')

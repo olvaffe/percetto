@@ -111,7 +111,7 @@ static struct percetto_category* g_categories[] = {
   PERCETTO_CATEGORY_PTR(aidl), // ATRACE_TAG_AIDL            (1<<24)
   PERCETTO_CATEGORY_PTR(nnapi), // ATRACE_TAG_NNAPI          (1<<25)
   PERCETTO_CATEGORY_PTR(rro), // ATRACE_TAG_RRO              (1<<26)
-  PERCETTO_CATEGORY_PTR(sysprop), // ATRACE_TAG_SYSPROP       (1<<27)
+  PERCETTO_CATEGORY_PTR(sysprop), // ATRACE_TAG_SYSPROP      (1<<27)
 };
 
 #define SCOPED_LOCK(mutex) \
@@ -241,4 +241,11 @@ void atrace_create_counter(uint64_t* result, const char* name) {
   percetto_register_track(track);
 
   *result = track->uuid;
+}
+
+void atrace_event(struct percetto_category* category,
+                  uint32_t sessions,
+                  int32_t type,
+                  const struct percetto_event_data* data) {
+  percetto_event(category, sessions, type, data);
 }

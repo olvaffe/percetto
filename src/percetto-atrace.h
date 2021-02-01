@@ -79,16 +79,41 @@ extern "C" {
 
 #define ATRACE_INIT() atrace_init()
 
-void atrace_init();
+__attribute__((visibility("default"))) void atrace_init();
 
+__attribute__((visibility("default")))
 void atrace_create_category(struct percetto_category** result, uint64_t tags);
+
+__attribute__((visibility("default")))
 void atrace_create_counter(uint64_t* result, const char* name);
+
+__attribute__((visibility("default")))
+void atrace_event(struct percetto_category* category,
+                  uint32_t sessions,
+                  int32_t type,
+                  const struct percetto_event_data* data);
+
+#define ATRACE_ANY_WITH_ARGS_PTR(type, category, track_id, ts, str_name, \
+                                 extra_value) \
+    do { \
+      const uint32_t PERCETTO_UID(mask) = PERCETTO_LOAD_MASK_PTR(category); \
+      if (PERCETTO_UNLIKELY(PERCETTO_UID(mask))) { \
+        struct percetto_event_data PERCETTO_UID(data) = { \
+          .track_uuid = (uint64_t)(track_id), \
+          .extra = (int64_t)(extra_value), \
+          .timestamp = (ts), \
+          .name = (str_name) \
+        }; \
+        atrace_event(category, PERCETTO_UID(mask), \
+            (int32_t)(type), &PERCETTO_UID(data)); \
+      } \
+    } while(0)
 
 #define ATRACE_ANY(type, name, extra) do { \
         static struct percetto_category* PERCETTO_UID(cat) = NULL; \
         if (PERCETTO_UNLIKELY(!PERCETTO_UID(cat))) \
             atrace_create_category(&PERCETTO_UID(cat), ATRACE_TAG); \
-        TRACE_ANY_WITH_ARGS_PTR(type, PERCETTO_UID(cat), 0, 0, name, extra); \
+        ATRACE_ANY_WITH_ARGS_PTR(type, PERCETTO_UID(cat), 0, 0, name, extra); \
     } while (0)
 
 #define ATRACE_COUNTER(name, value) do { \
@@ -98,7 +123,7 @@ void atrace_create_counter(uint64_t* result, const char* name);
             atrace_create_category(&PERCETTO_UID(cat), ATRACE_TAG); \
             atrace_create_counter(&PERCETTO_UID(trk), name); \
         } \
-        TRACE_ANY_WITH_ARGS_PTR(PERCETTO_EVENT_COUNTER, PERCETTO_UID(cat), \
+        ATRACE_ANY_WITH_ARGS_PTR(PERCETTO_EVENT_COUNTER, PERCETTO_UID(cat), \
             PERCETTO_UID(trk), 0, NULL, value); \
     } while (0)
 
