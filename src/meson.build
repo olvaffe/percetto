@@ -20,6 +20,7 @@ percetto_lib = static_library(
   dependencies: perfetto_sdk_dep,
   cpp_args : ['-fdata-sections', '-ffunction-sections', '-Os'],
   install : true,
+  pic : true,
 )
 
 percetto_dep = declare_dependency(
