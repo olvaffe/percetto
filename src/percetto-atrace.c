@@ -138,20 +138,24 @@ void atrace_init() {
   }
 }
 
-struct percetto_category* atrace_create_category(uint64_t tags) {
+void atrace_create_category(struct percetto_category** result, uint64_t tags) {
   if (s_percetto_status == PERCETTO_STATUS_NOT_STARTED)
     atrace_init();
 
   SCOPED_LOCK(s_lock);
 
   if (s_percetto_status != PERCETTO_STATUS_OK ||
-      !(tags & ATRACE_TAG_VALID_MASK))
-    return PERCETTO_CATEGORY_PTR(never);
+      !(tags & ATRACE_TAG_VALID_MASK)) {
+    *result = PERCETTO_CATEGORY_PTR(never);
+    return;
+  }
 
   // Check if we already have a matching group category for these tags.
   for (int i = 0; i < s_groups.count; ++i) {
-    if (s_groups.tags[i] == tags)
-      return &s_groups.categories[i];
+    if (s_groups.tags[i] == tags) {
+      *result = &s_groups.categories[i];
+      return;
+    }
   }
 
   // Create the array of category indices for this group.
@@ -172,20 +176,23 @@ struct percetto_category* atrace_create_category(uint64_t tags) {
   if (group.count == 0) {
     // No categories were specified, so these trace events should never
     // trigger.
-    return PERCETTO_CATEGORY_PTR(never);
+    *result = PERCETTO_CATEGORY_PTR(never);
+    return;
   }
 
   if (group.count == 1) {
     // One category specified so return its pointer.
     uint32_t index = group.child_ids[0];
     assert(index < static_count);
-    return g_categories[index];
+    *result = g_categories[index];
+    return;
   }
 
   if (s_groups.count == PERCETTO_MAX_GROUP_CATEGORIES) {
     fprintf(stderr, "%s error: too many different atrace combinations used\n",
             __func__);
-    return PERCETTO_CATEGORY_PTR(never);
+    *result = PERCETTO_CATEGORY_PTR(never);
+    return;
   }
 
   // Allocate and return a group category.
@@ -198,27 +205,29 @@ struct percetto_category* atrace_create_category(uint64_t tags) {
   // category before it's ready.
   percetto_register_group_category(category);
 
-  return category;
+  *result = category;
 }
 
-uint64_t atrace_create_counter(const char* name) {
+void atrace_create_counter(uint64_t* result, const char* name) {
   if (s_percetto_status == PERCETTO_STATUS_NOT_STARTED)
     atrace_init();
 
   SCOPED_LOCK(s_lock);
 
   if (s_percetto_status != PERCETTO_STATUS_OK)
-    return 0;
+    return;
 
   // Check if we already have a matching group category for these tags.
   for (int i = 0; i < s_tracks.count; ++i) {
-    if (s_tracks.tracks[i].name == name)
-      return s_tracks.tracks[i].uuid;
+    if (s_tracks.tracks[i].name == name) {
+      *result = s_tracks.tracks[i].uuid;
+      return;
+    }
   }
 
   if (s_tracks.count == PERCETTO_MAX_TRACKS) {
     fprintf(stderr, "%s error: too many atrace counters used\n", __func__);
-    return 0;
+    return;
   }
 
   struct percetto_track* track = &s_tracks.tracks[s_tracks.count];
@@ -231,5 +240,5 @@ uint64_t atrace_create_counter(const char* name) {
   // before it's ready.
   percetto_register_track(track);
 
-  return track->uuid;
+  *result = track->uuid;
 }

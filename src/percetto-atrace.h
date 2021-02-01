@@ -81,13 +81,13 @@ extern "C" {
 
 void atrace_init();
 
-struct percetto_category* atrace_create_category(uint64_t tags);
-uint64_t atrace_create_counter(const char* name);
+void atrace_create_category(struct percetto_category** result, uint64_t tags);
+void atrace_create_counter(uint64_t* result, const char* name);
 
 #define ATRACE_ANY(type, name, extra) do { \
         static struct percetto_category* PERCETTO_UID(cat) = NULL; \
         if (PERCETTO_UNLIKELY(!PERCETTO_UID(cat))) \
-            PERCETTO_UID(cat) = atrace_create_category(ATRACE_TAG); \
+            atrace_create_category(&PERCETTO_UID(cat), ATRACE_TAG); \
         TRACE_ANY_WITH_ARGS_PTR(type, PERCETTO_UID(cat), 0, 0, name, extra); \
     } while (0)
 
@@ -95,8 +95,8 @@ uint64_t atrace_create_counter(const char* name);
         static struct percetto_category* PERCETTO_UID(cat) = NULL; \
         static uint64_t PERCETTO_UID(trk) = 0; \
         if (PERCETTO_UNLIKELY(!PERCETTO_UID(cat))) { \
-            PERCETTO_UID(cat) = atrace_create_category(ATRACE_TAG); \
-            PERCETTO_UID(trk) = atrace_create_counter(name); \
+            atrace_create_category(&PERCETTO_UID(cat), ATRACE_TAG); \
+            atrace_create_counter(&PERCETTO_UID(trk), name); \
         } \
         TRACE_ANY_WITH_ARGS_PTR(PERCETTO_EVENT_COUNTER, PERCETTO_UID(cat), \
             PERCETTO_UID(trk), 0, NULL, value); \
