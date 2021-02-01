@@ -34,6 +34,7 @@ static int trace_init(void) {
   static struct percetto_category* categories[] = {
       PERCETTO_CATEGORY_PTR(cat),
       PERCETTO_CATEGORY_PTR(dog),
+      PERCETTO_CATEGORY_PTR(dbg),
   };
   ret = percetto_init(sizeof(categories) / sizeof(categories[0]),
                       categories, PERCETTO_CLOCK_DONT_CARE);
