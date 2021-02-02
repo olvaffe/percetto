@@ -53,70 +53,42 @@ static struct atrace_counter_tracker s_tracks;
 // This category is never registered so it remains disabled permanently.
 PERCETTO_CATEGORY_DEFINE(never, "");
 
-PERCETTO_CATEGORY_DEFINE(always, "ATRACE_TAG_ALWAYS");
-PERCETTO_CATEGORY_DEFINE_SLOW(gfx, "Graphics");
-PERCETTO_CATEGORY_DEFINE_SLOW(input, "Input");
-PERCETTO_CATEGORY_DEFINE_SLOW(view, "View System");
-PERCETTO_CATEGORY_DEFINE_SLOW(webview, "WebView");
-PERCETTO_CATEGORY_DEFINE_SLOW(wm, "Window Manager");
-PERCETTO_CATEGORY_DEFINE_SLOW(am, "Activity Manager");
-PERCETTO_CATEGORY_DEFINE_SLOW(sm, "Sync Manager");
-PERCETTO_CATEGORY_DEFINE_SLOW(audio, "Audio");
-PERCETTO_CATEGORY_DEFINE_SLOW(video, "Video");
-PERCETTO_CATEGORY_DEFINE_SLOW(camera, "Camera");
-PERCETTO_CATEGORY_DEFINE_SLOW(hal, "Hardware Modules");
-PERCETTO_CATEGORY_DEFINE_SLOW(app, "ATRACE_TAG_APP");
-PERCETTO_CATEGORY_DEFINE_SLOW(res, "ATRACE_TAG_VIEW");
-PERCETTO_CATEGORY_DEFINE_SLOW(dalvik, "Dalvik VM");
-PERCETTO_CATEGORY_DEFINE_SLOW(rs, "RenderScript");
-PERCETTO_CATEGORY_DEFINE_SLOW(bionic, "Bionic C Library");
-PERCETTO_CATEGORY_DEFINE_SLOW(power, "Power Management");
-PERCETTO_CATEGORY_DEFINE_SLOW(pm, "Package Manager");
-PERCETTO_CATEGORY_DEFINE_SLOW(ss, "System Server");
-PERCETTO_CATEGORY_DEFINE_SLOW(database, "Database");
-PERCETTO_CATEGORY_DEFINE_SLOW(network, "Network");
-PERCETTO_CATEGORY_DEFINE_SLOW(adb, "ADB");
-PERCETTO_CATEGORY_DEFINE_SLOW(vibrator, "Vibrator");
-PERCETTO_CATEGORY_DEFINE_SLOW(aidl, "AIDL calls");
-PERCETTO_CATEGORY_DEFINE_SLOW(nnapi, "NNAPI");
-PERCETTO_CATEGORY_DEFINE_SLOW(rro, "ATRACE_TAG_RRO");
-PERCETTO_CATEGORY_DEFINE_SLOW(sysprop, "ATRACE_TAG_SYSPROP");
-
 // The order in this array exactly matches the ATRACE_TAG bit shifts:
-static struct percetto_category* g_categories[] = {
-  PERCETTO_CATEGORY_PTR(always), // ATRACE_TAG_ALWAYS        (1<<0)
-  PERCETTO_CATEGORY_PTR(gfx), // ATRACE_TAG_GRAPHICS         (1<<1)
-  PERCETTO_CATEGORY_PTR(input), // ATRACE_TAG_INPUT          (1<<2)
-  PERCETTO_CATEGORY_PTR(view), // ATRACE_TAG_VIEW            (1<<3)
-  PERCETTO_CATEGORY_PTR(webview), // ATRACE_TAG_WEBVIEW      (1<<4)
-  PERCETTO_CATEGORY_PTR(wm), // ATRACE_TAG_WINDOW_MANAGER    (1<<5)
-  PERCETTO_CATEGORY_PTR(am), // ATRACE_TAG_ACTIVITY_MANAGER  (1<<6)
-  PERCETTO_CATEGORY_PTR(sm), // ATRACE_TAG_SYNC_MANAGER      (1<<7)
-  PERCETTO_CATEGORY_PTR(audio), // ATRACE_TAG_AUDIO          (1<<8)
-  PERCETTO_CATEGORY_PTR(video), // ATRACE_TAG_VIDEO          (1<<9)
-  PERCETTO_CATEGORY_PTR(camera), // ATRACE_TAG_CAMERA        (1<<10)
-  PERCETTO_CATEGORY_PTR(hal), // ATRACE_TAG_HAL              (1<<11)
-  PERCETTO_CATEGORY_PTR(app), // ATRACE_TAG_APP              (1<<12)
-  PERCETTO_CATEGORY_PTR(res), // ATRACE_TAG_RESOURCES        (1<<13)
-  PERCETTO_CATEGORY_PTR(dalvik), // ATRACE_TAG_DALVIK        (1<<14)
-  PERCETTO_CATEGORY_PTR(rs), // ATRACE_TAG_RS                (1<<15)
-  PERCETTO_CATEGORY_PTR(bionic), // ATRACE_TAG_BIONIC        (1<<16)
-  PERCETTO_CATEGORY_PTR(power), // ATRACE_TAG_POWER          (1<<17)
-  PERCETTO_CATEGORY_PTR(pm), // ATRACE_TAG_PACKAGE_MANAGER   (1<<18)
-  PERCETTO_CATEGORY_PTR(ss), // ATRACE_TAG_SYSTEM_SERVER     (1<<19)
-  PERCETTO_CATEGORY_PTR(database), // ATRACE_TAG_DATABASE    (1<<20)
-  PERCETTO_CATEGORY_PTR(network), // ATRACE_TAG_NETWORK      (1<<21)
-  PERCETTO_CATEGORY_PTR(adb), // ATRACE_TAG_ADB              (1<<22)
-  PERCETTO_CATEGORY_PTR(vibrator), // ATRACE_TAG_VIBRATOR    (1<<23)
-  PERCETTO_CATEGORY_PTR(aidl), // ATRACE_TAG_AIDL            (1<<24)
-  PERCETTO_CATEGORY_PTR(nnapi), // ATRACE_TAG_NNAPI          (1<<25)
-  PERCETTO_CATEGORY_PTR(rro), // ATRACE_TAG_RRO              (1<<26)
-  PERCETTO_CATEGORY_PTR(sysprop), // ATRACE_TAG_SYSPROP      (1<<27)
-};
+#define ATRACE_PERCETTO_CATEGORIES(C) \
+  C(always, "ATRACE_TAG_ALWAYS") \
+  C(gfx, "Graphics", "slow") \
+  C(input, "Input", "slow") \
+  C(view, "View System", "slow") \
+  C(webview, "WebView", "slow") \
+  C(wm, "Window Manager", "slow") \
+  C(am, "Activity Manager", "slow") \
+  C(sm, "Sync Manager", "slow") \
+  C(audio, "Audio", "slow") \
+  C(video, "Video", "slow") \
+  C(camera, "Camera", "slow") \
+  C(hal, "Hardware Modules", "slow") \
+  C(app, "ATRACE_TAG_APP", "slow") \
+  C(res, "ATRACE_TAG_VIEW", "slow") \
+  C(dalvik, "Dalvik VM", "slow") \
+  C(rs, "RenderScript", "slow") \
+  C(bionic, "Bionic C Library", "slow") \
+  C(power, "Power Management", "slow") \
+  C(pm, "Package Manager", "slow") \
+  C(ss, "System Server", "slow") \
+  C(database, "Database", "slow") \
+  C(network, "Network", "slow") \
+  C(adb, "ADB", "slow") \
+  C(vibrator, "Vibrator", "slow") \
+  C(aidl, "AIDL calls", "slow") \
+  C(nnapi, "NNAPI", "slow") \
+  C(rro, "ATRACE_TAG_RRO", "slow") \
+  C(sysprop, "ATRACE_TAG_SYSPROP", "slow")
+
+PERCETTO_CATEGORY_DEFINE_MULTI(ATRACE_PERCETTO_CATEGORIES);
 
 #define SCOPED_LOCK(mutex) \
    pthread_mutex_lock(&(mutex)); \
-   pthread_mutex_t* PERCETTO_UID(unlocker) \
+   pthread_mutex_t* I_PERCETTO_UID(unlocker) \
       __attribute__((cleanup(scoped_unlock), unused)) = &(mutex)
 
 static inline void scoped_unlock(pthread_mutex_t** mutex) {
@@ -128,8 +100,7 @@ void atrace_init() {
   if (s_percetto_status != PERCETTO_STATUS_NOT_STARTED)
     return;
 
-  int ret = percetto_init(sizeof(g_categories) / sizeof(g_categories[0]),
-                          g_categories, PERCETTO_CLOCK_DONT_CARE);
+  int ret = PERCETTO_INIT(PERCETTO_CLOCK_DONT_CARE);
   if (ret < 0) {
     fprintf(stderr, "error: percetto_init failed: %d\n", ret);
     s_percetto_status = PERCETTO_STATUS_ERROR;
@@ -159,7 +130,8 @@ void atrace_create_category(struct percetto_category** result, uint64_t tags) {
   }
 
   // Create the array of category indices for this group.
-  uint32_t static_count = sizeof(g_categories) / sizeof(g_categories[0]);
+  const uint32_t static_count =
+      sizeof(g_percetto_categories) / sizeof(g_percetto_categories[0]);
   assert(static_count <= 256);
   struct percetto_category_group group = { .child_ids = { 0 }, .count = 0 };
   for (uint32_t i = 0; i < static_count; ++i) {
@@ -184,7 +156,7 @@ void atrace_create_category(struct percetto_category** result, uint64_t tags) {
     // One category specified so return its pointer.
     uint32_t index = group.child_ids[0];
     assert(index < static_count);
-    *result = g_categories[index];
+    *result = g_percetto_categories[index];
     return;
   }
 

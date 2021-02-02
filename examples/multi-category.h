@@ -19,9 +19,12 @@
 
 #include "percetto.h"
 
-PERCETTO_CATEGORY_DECLARE(cat);
-PERCETTO_CATEGORY_DECLARE(dog);
-PERCETTO_CATEGORY_DECLARE(dbg);
+#define MY_PERCETTO_CATEGORIES(C) \
+  C(cat, "Cat events") \
+  C(dog, "Dog events", "slow") \
+  C(dbg, "Debug events", "debug", "mytag")
+
+PERCETTO_CATEGORY_DECLARE_MULTI(MY_PERCETTO_CATEGORIES);
 
 PERCETTO_TRACK_DECLARE(squirrels);
 

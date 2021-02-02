@@ -23,21 +23,13 @@
 
 #include "multi-category.h"
 
-PERCETTO_CATEGORY_DEFINE(cat, "Cat events");
-PERCETTO_CATEGORY_DEFINE_SLOW(dog, "Dog events");
-PERCETTO_CATEGORY_DEFINE_WITH_TAGS(dbg, "Debug events", "debug", "mytag");
+PERCETTO_CATEGORY_DEFINE_MULTI(MY_PERCETTO_CATEGORIES);
 
 PERCETTO_TRACK_DEFINE(squirrels, PERCETTO_TRACK_COUNTER, 42);
 
 static int trace_init(void) {
   int ret;
-  static struct percetto_category* categories[] = {
-      PERCETTO_CATEGORY_PTR(cat),
-      PERCETTO_CATEGORY_PTR(dog),
-      PERCETTO_CATEGORY_PTR(dbg),
-  };
-  ret = percetto_init(sizeof(categories) / sizeof(categories[0]),
-                      categories, PERCETTO_CLOCK_DONT_CARE);
+  ret = PERCETTO_INIT(PERCETTO_CLOCK_DONT_CARE);
   if (ret != 0)
     return ret;
   ret = percetto_register_track(PERCETTO_TRACK_PTR(squirrels));

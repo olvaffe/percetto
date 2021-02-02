@@ -37,38 +37,42 @@ using std::size_t;
 extern "C" {
 #endif
 
-#define PERCETTO_LIKELY(x) __builtin_expect(!!(x), 1)
-#define PERCETTO_UNLIKELY(x) __builtin_expect(!!(x), 0)
-
-#define PERCETTO_UID3(a, b) percetto_uid_##a##b
-#define PERCETTO_UID2(a, b) PERCETTO_UID3(a, b)
-#define PERCETTO_UID(prefix) PERCETTO_UID2(prefix, __LINE__)
-
 /** Optionally declare each category in a header file. */
 #define PERCETTO_CATEGORY_DECLARE(category) \
     extern struct percetto_category g_percetto_category_##category
 
-/** Define each category with tags in a compilation file. */
-#define PERCETTO_CATEGORY_DEFINE_WITH_TAGS(category, description, ...) \
+/** Define each category with optional tags in a compilation file. */
+#define PERCETTO_CATEGORY_DEFINE(category, description, ...) \
     struct percetto_category g_percetto_category_##category = \
         { PERCETTO_ATOMIC_INIT(0), #category, description, {__VA_ARGS__}, \
         { { 0 }, 0 }, { 0 } }
-
-/** Define a category in a compilation file. */
-#define PERCETTO_CATEGORY_DEFINE(category, description) \
-    PERCETTO_CATEGORY_DEFINE_WITH_TAGS(category, description, NULL)
-
-/** Define a slow category (disabled by default) in a compilation file. */
-#define PERCETTO_CATEGORY_DEFINE_SLOW(category, description) \
-    PERCETTO_CATEGORY_DEFINE_WITH_TAGS(category, description, "slow")
 
 /** /group/ is a percetto_category_group. */
 #define PERCETTO_GROUP_CATEGORY(group) (struct percetto_category) \
     { PERCETTO_ATOMIC_INIT(0), NULL, NULL, { NULL }, group, { 0 } }
 
-/** Declare each track in a header file. */
+/** Optionally declare each track in a header file. */
 #define PERCETTO_TRACK_DECLARE(track) \
     extern struct percetto_track g_percetto_track_##track
+
+/** Optionally declare a list of categories in a header. */
+#define PERCETTO_CATEGORY_DECLARE_MULTI(MACRO) \
+    MACRO(I_PERCETTO_CATEGORY_DECLARE_SEMICOLON)
+
+/** Define a list of categories. */
+#define PERCETTO_CATEGORY_DEFINE_MULTI(MACRO) \
+    MACRO(I_PERCETTO_CATEGORY_DEFINE_SEMICOLON) \
+    static struct percetto_category* g_percetto_categories[] = { \
+        MACRO(I_PERCETTO_CATEGORY_PTR_COMMA) \
+    };
+
+/**
+ * Initialize percetto with given percetto_clock choice.
+ * PERCETTO_CATEGORY_DEFINE_MULTI must be called earlier.
+ */
+#define PERCETTO_INIT(clock) percetto_init( \
+    sizeof(g_percetto_categories) / sizeof(g_percetto_categories[0]), \
+    g_percetto_categories, clock)
 
 /**
  * Define each track in a compilation file. For /track_type/ see
@@ -84,6 +88,23 @@ extern "C" {
 
 #define PERCETTO_CATEGORY_IS_ENABLED(category) \
     (!!g_percetto_category_##category.sessions)
+
+#define PERCETTO_LIKELY(x) __builtin_expect(!!(x), 1)
+#define PERCETTO_UNLIKELY(x) __builtin_expect(!!(x), 0)
+
+/* Internal macros prefixed with I_. */
+#define I_PERCETTO_UID3(a, b) percetto_uid_##a##b
+#define I_PERCETTO_UID2(a, b) I_PERCETTO_UID3(a, b)
+#define I_PERCETTO_UID(prefix) I_PERCETTO_UID2(prefix, __LINE__)
+
+#define I_PERCETTO_CATEGORY_DECLARE_SEMICOLON(category, description, ...) \
+    PERCETTO_CATEGORY_DECLARE(category);
+
+#define I_PERCETTO_CATEGORY_DEFINE_SEMICOLON(category, description, ...) \
+    PERCETTO_CATEGORY_DEFINE(category, description, __VA_ARGS__);
+
+#define I_PERCETTO_CATEGORY_PTR_COMMA(category, description, ...) \
+    PERCETTO_CATEGORY_PTR(category),
 
 #define PERCETTO_MAX_CATEGORIES 256
 #define PERCETTO_MAX_GROUP_CATEGORIES 32
@@ -263,27 +284,27 @@ static inline void percetto_cleanup_end(struct percetto_category** category) {
  * enabled.
  */
 #define TRACE_EVENT(category, str_name) \
-    const uint32_t PERCETTO_UID(mask) = PERCETTO_LOAD_MASK(category); \
-    if (PERCETTO_UNLIKELY(PERCETTO_UID(mask))) \
+    const uint32_t I_PERCETTO_UID(mask) = PERCETTO_LOAD_MASK(category); \
+    if (PERCETTO_UNLIKELY(I_PERCETTO_UID(mask))) \
       percetto_event_begin(&g_percetto_category_##category, \
-          PERCETTO_UID(mask), (str_name)); \
-    struct percetto_category* PERCETTO_UID(trace_scoped) \
+          I_PERCETTO_UID(mask), (str_name)); \
+    struct percetto_category* I_PERCETTO_UID(trace_scoped) \
         __attribute__((cleanup(percetto_cleanup_end), unused)) = \
             &g_percetto_category_##category
 
 #define TRACE_ANY_WITH_ARGS_PTR(type, category, track_id, ts, str_name, \
                                 extra_value) \
     do { \
-      const uint32_t PERCETTO_UID(mask) = PERCETTO_LOAD_MASK_PTR(category); \
-      if (PERCETTO_UNLIKELY(PERCETTO_UID(mask))) { \
-        struct percetto_event_data PERCETTO_UID(data) = { \
+      const uint32_t I_PERCETTO_UID(mask) = PERCETTO_LOAD_MASK_PTR(category); \
+      if (PERCETTO_UNLIKELY(I_PERCETTO_UID(mask))) { \
+        struct percetto_event_data I_PERCETTO_UID(data) = { \
           .track_uuid = (uint64_t)(track_id), \
           .extra = (int64_t)(extra_value), \
           .timestamp = (ts), \
           .name = (str_name) \
         }; \
-        percetto_event(category, PERCETTO_UID(mask), \
-            (int32_t)(type), &PERCETTO_UID(data)); \
+        percetto_event(category, I_PERCETTO_UID(mask), \
+            (int32_t)(type), &I_PERCETTO_UID(data)); \
       } \
     } while(0)
 
@@ -324,95 +345,95 @@ static inline void percetto_cleanup_end(struct percetto_category** category) {
 /* Debug annotation macros */
 
 #define PERCETTO_BOOL(str_name, value) { \
-      .extended = { .type = PERCETTO_EVENT_EXTENDED_DEBUG_DATA, .next = NULL }, \
-      .type = PERCETTO_EVENT_DEBUG_DATA_BOOL, \
-      .name = str_name, .bool_value = (uint32_t)!!(value) \
-    }
+    .extended = { .type = PERCETTO_EVENT_EXTENDED_DEBUG_DATA, .next = NULL }, \
+    .type = PERCETTO_EVENT_DEBUG_DATA_BOOL, \
+    .name = str_name, .bool_value = (uint32_t)!!(value) \
+  }
 
 #define PERCETTO_UINT(str_name, value) { \
-      .extended = { .type = PERCETTO_EVENT_EXTENDED_DEBUG_DATA, .next = NULL }, \
-      .type = PERCETTO_EVENT_DEBUG_DATA_UINT, \
-      .name = str_name, .uint_value = (value) \
-    }
+    .extended = { .type = PERCETTO_EVENT_EXTENDED_DEBUG_DATA, .next = NULL }, \
+    .type = PERCETTO_EVENT_DEBUG_DATA_UINT, \
+    .name = str_name, .uint_value = (value) \
+  }
 
 #define PERCETTO_INT(str_name, value) { \
-      .extended = { .type = PERCETTO_EVENT_EXTENDED_DEBUG_DATA, .next = NULL }, \
-      .type = PERCETTO_EVENT_DEBUG_DATA_INT, \
-      .name = str_name, .int_value = (value) \
-    }
+    .extended = { .type = PERCETTO_EVENT_EXTENDED_DEBUG_DATA, .next = NULL }, \
+    .type = PERCETTO_EVENT_DEBUG_DATA_INT, \
+    .name = str_name, .int_value = (value) \
+  }
 
 #define PERCETTO_DOUBLE(str_name, value) { \
-      .extended = { .type = PERCETTO_EVENT_EXTENDED_DEBUG_DATA, .next = NULL }, \
-      .type = PERCETTO_EVENT_DEBUG_DATA_DOUBLE, \
-      .name = str_name, .double_value = (value) \
-    }
+    .extended = { .type = PERCETTO_EVENT_EXTENDED_DEBUG_DATA, .next = NULL }, \
+    .type = PERCETTO_EVENT_DEBUG_DATA_DOUBLE, \
+    .name = str_name, .double_value = (value) \
+  }
 
 #define PERCETTO_STRING(str_name, str_value) { \
-      .extended = { .type = PERCETTO_EVENT_EXTENDED_DEBUG_DATA, .next = NULL }, \
-      .type = PERCETTO_EVENT_DEBUG_DATA_STRING, \
-      .name = str_name, .string_value = (str_value) \
-    }
+    .extended = { .type = PERCETTO_EVENT_EXTENDED_DEBUG_DATA, .next = NULL }, \
+    .type = PERCETTO_EVENT_DEBUG_DATA_STRING, \
+    .name = str_name, .string_value = (str_value) \
+  }
 
 #define PERCETTO_POINTER(str_name, ptr) { \
-      .extended = { .type = PERCETTO_EVENT_EXTENDED_DEBUG_DATA, .next = NULL }, \
-      .type = PERCETTO_EVENT_DEBUG_DATA_POINTER, \
-      .name = str_name, .pointer_value = (uintptr_t)(ptr) \
-    }
+    .extended = { .type = PERCETTO_EVENT_EXTENDED_DEBUG_DATA, .next = NULL }, \
+    .type = PERCETTO_EVENT_DEBUG_DATA_POINTER, \
+    .name = str_name, .pointer_value = (uintptr_t)(ptr) \
+  }
 
 #define TRACE_DEBUG_DATA(category, data) \
     do { \
-      const uint32_t PERCETTO_UID(mask) = PERCETTO_LOAD_MASK(category); \
-      if (PERCETTO_UNLIKELY(PERCETTO_UID(mask))) { \
-        struct percetto_event_debug_data PERCETTO_UID(dbg1) = data; \
-        struct percetto_event_data PERCETTO_UID(evdata) = { \
+      const uint32_t I_PERCETTO_UID(mask) = PERCETTO_LOAD_MASK(category); \
+      if (PERCETTO_UNLIKELY(I_PERCETTO_UID(mask))) { \
+        struct percetto_event_debug_data I_PERCETTO_UID(dbg1) = data; \
+        struct percetto_event_data I_PERCETTO_UID(evdata) = { \
           .track_uuid = 0, \
           .extra = 0, \
           .timestamp = 0, \
-          .name = PERCETTO_UID(dbg1).name \
+          .name = I_PERCETTO_UID(dbg1).name \
         }; \
         percetto_event_extended(&g_percetto_category_##category, \
-            PERCETTO_UID(mask), (int32_t)PERCETTO_EVENT_INSTANT, \
-            &PERCETTO_UID(evdata), &PERCETTO_UID(dbg1).extended); \
+            I_PERCETTO_UID(mask), (int32_t)PERCETTO_EVENT_INSTANT, \
+            &I_PERCETTO_UID(evdata), &I_PERCETTO_UID(dbg1).extended); \
       } \
     } while(0)
 
 #define TRACE_DEBUG_DATA2(category, str_name, data1, data2) \
     do { \
-      const uint32_t PERCETTO_UID(mask) = PERCETTO_LOAD_MASK(category); \
-      if (PERCETTO_UNLIKELY(PERCETTO_UID(mask))) { \
-        struct percetto_event_data PERCETTO_UID(evdata) = { \
+      const uint32_t I_PERCETTO_UID(mask) = PERCETTO_LOAD_MASK(category); \
+      if (PERCETTO_UNLIKELY(I_PERCETTO_UID(mask))) { \
+        struct percetto_event_data I_PERCETTO_UID(evdata) = { \
           .track_uuid = 0, \
           .extra = 0, \
           .timestamp = 0, \
           .name = (str_name) \
         }; \
-        struct percetto_event_debug_data PERCETTO_UID(dbg1) = data1; \
-        struct percetto_event_debug_data PERCETTO_UID(dbg2) = data2; \
-        PERCETTO_UID(dbg1).extended.next = &PERCETTO_UID(dbg2).extended; \
+        struct percetto_event_debug_data I_PERCETTO_UID(dbg1) = data1; \
+        struct percetto_event_debug_data I_PERCETTO_UID(dbg2) = data2; \
+        I_PERCETTO_UID(dbg1).extended.next = &I_PERCETTO_UID(dbg2).extended; \
         percetto_event_extended(&g_percetto_category_##category, \
-            PERCETTO_UID(mask), (int32_t)PERCETTO_EVENT_INSTANT, \
-            &PERCETTO_UID(evdata), &PERCETTO_UID(dbg1).extended); \
+            I_PERCETTO_UID(mask), (int32_t)PERCETTO_EVENT_INSTANT, \
+            &I_PERCETTO_UID(evdata), &I_PERCETTO_UID(dbg1).extended); \
       } \
     } while(0)
 
 #define TRACE_DEBUG_DATA3(category, str_name, data1, data2, data3) \
     do { \
-      const uint32_t PERCETTO_UID(mask) = PERCETTO_LOAD_MASK(category); \
-      if (PERCETTO_UNLIKELY(PERCETTO_UID(mask))) { \
-        struct percetto_event_data PERCETTO_UID(evdata) = { \
+      const uint32_t I_PERCETTO_UID(mask) = PERCETTO_LOAD_MASK(category); \
+      if (PERCETTO_UNLIKELY(I_PERCETTO_UID(mask))) { \
+        struct percetto_event_data I_PERCETTO_UID(evdata) = { \
           .track_uuid = 0, \
           .extra = 0, \
           .timestamp = 0, \
           .name = (str_name) \
         }; \
-        struct percetto_event_debug_data PERCETTO_UID(dbg1) = data1; \
-        struct percetto_event_debug_data PERCETTO_UID(dbg2) = data2; \
-        struct percetto_event_debug_data PERCETTO_UID(dbg3) = data3; \
-        PERCETTO_UID(dbg1).extended.next = &PERCETTO_UID(dbg2).extended; \
-        PERCETTO_UID(dbg2).extended.next = &PERCETTO_UID(dbg3).extended; \
+        struct percetto_event_debug_data I_PERCETTO_UID(dbg1) = data1; \
+        struct percetto_event_debug_data I_PERCETTO_UID(dbg2) = data2; \
+        struct percetto_event_debug_data I_PERCETTO_UID(dbg3) = data3; \
+        I_PERCETTO_UID(dbg1).extended.next = &I_PERCETTO_UID(dbg2).extended; \
+        I_PERCETTO_UID(dbg2).extended.next = &I_PERCETTO_UID(dbg3).extended; \
         percetto_event_extended(&g_percetto_category_##category, \
-            PERCETTO_UID(mask), (int32_t)PERCETTO_EVENT_INSTANT, \
-            &PERCETTO_UID(evdata), &PERCETTO_UID(dbg1).extended); \
+            I_PERCETTO_UID(mask), (int32_t)PERCETTO_EVENT_INSTANT, \
+            &I_PERCETTO_UID(evdata), &I_PERCETTO_UID(dbg1).extended); \
       } \
     } while(0)
 
