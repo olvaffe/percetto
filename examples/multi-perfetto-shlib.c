@@ -17,17 +17,17 @@
 #include "percetto.h"
 #include "multi-perfetto-shlib.h"
 
-PERCETTO_CATEGORY_DEFINE(shlib, "Shared lib test events");
+#define MY_PERCETTO_CATEGORIES(C) \
+  C(shlib, "Shared lib test events")
+
+PERCETTO_CATEGORY_DEFINE_MULTI(MY_PERCETTO_CATEGORIES);
 
 int test_shlib_init(void) {
-  static struct percetto_category* categories[] = {
-      PERCETTO_CATEGORY_PTR(shlib),
-  };
-  return percetto_init(sizeof(categories) / sizeof(categories[0]), categories,
-                       PERCETTO_CLOCK_DONT_CARE);
+  return PERCETTO_INIT(PERCETTO_CLOCK_DONT_CARE);
 }
 
 void test_shlib_func(int64_t flow_id) {
+  (void)flow_id;
   TRACE_EVENT(shlib, "test_shlib_func");
   TRACE_FLOW(shlib, "flow2", flow_id);
 }

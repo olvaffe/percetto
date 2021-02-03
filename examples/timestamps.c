@@ -23,22 +23,21 @@
 
 #include "percetto.h"
 
-PERCETTO_CATEGORY_DEFINE(gfx, "Graphics events");
+#define MY_PERCETTO_CATEGORIES(C) \
+  C(gfx, "Graphics events")
+
+PERCETTO_CATEGORY_DEFINE_MULTI(MY_PERCETTO_CATEGORIES);
 
 PERCETTO_TRACK_DEFINE(gpu, PERCETTO_TRACK_EVENTS);
 
 static int trace_init(void) {
   int ret;
-  static struct percetto_category* categories[] = {
-      PERCETTO_CATEGORY_PTR(gfx),
-  };
   struct timespec ts; (void)ts;
   assert(clock_gettime(CLOCK_BOOTTIME, &ts) == 0);
-  ret = percetto_init(sizeof(categories) / sizeof(categories[0]), categories,
-                      PERCETTO_CLOCK_BOOTTIME);
+  ret = PERCETTO_INIT(PERCETTO_CLOCK_BOOTTIME);
   if (ret != 0)
     return ret;
-  return percetto_register_track(PERCETTO_TRACK_PTR(gpu));
+  return PERCETTO_REGISTER_TRACK(gpu);
 }
 
 static void test(void) {

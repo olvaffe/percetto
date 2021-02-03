@@ -77,8 +77,6 @@ extern "C" {
 #error ATRACE_TAG must be defined to be one of the tags defined in cutils/trace.h
 #endif
 
-#define ATRACE_INIT() atrace_init()
-
 __attribute__((visibility("default"))) void atrace_init();
 
 __attribute__((visibility("default")))
@@ -93,10 +91,18 @@ void atrace_event(struct percetto_category* category,
                   int32_t type,
                   const struct percetto_event_data* data);
 
+#ifdef NPERCETTO
+#define ATRACE_INIT()
+#define ATRACE_ANY(type, name, extra)
+#define ATRACE_COUNTER(name, value)
+#else
+
+#define ATRACE_INIT() atrace_init()
+
 #define ATRACE_ANY_WITH_ARGS_PTR(type, category, ptrack, ts, str_name, \
                                  extra_value) \
     do { \
-      const uint32_t I_PERCETTO_UID(mask) = PERCETTO_LOAD_MASK_PTR(category); \
+      const uint32_t I_PERCETTO_UID(mask) = I_PERCETTO_LOAD_MASK_PTR(category); \
       if (PERCETTO_UNLIKELY(I_PERCETTO_UID(mask))) { \
         struct percetto_event_data I_PERCETTO_UID(data) = { \
           .track = ptrack, \
@@ -126,6 +132,8 @@ void atrace_event(struct percetto_category* category,
         ATRACE_ANY_WITH_ARGS_PTR(PERCETTO_EVENT_COUNTER, I_PERCETTO_UID(cat), \
             I_PERCETTO_UID(trk), 0, NULL, value); \
     } while (0)
+
+#endif // NPERCETTO
 
 #define ATRACE_BEGIN(name) ATRACE_ANY(PERCETTO_EVENT_BEGIN, name, 0)
 

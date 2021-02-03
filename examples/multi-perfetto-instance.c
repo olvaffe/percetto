@@ -21,14 +21,13 @@
 #include "percetto.h"
 #include "multi-perfetto-shlib.h"
 
-PERCETTO_CATEGORY_DEFINE(test, "Test events");
+#define MY_PERCETTO_CATEGORIES(C) \
+  C(test, "Test events")
+
+PERCETTO_CATEGORY_DEFINE_MULTI(MY_PERCETTO_CATEGORIES);
 
 static int trace_init(void) {
-  static struct percetto_category* categories[] = {
-      PERCETTO_CATEGORY_PTR(test),
-  };
-  return percetto_init(sizeof(categories) / sizeof(categories[0]), categories,
-                       PERCETTO_CLOCK_DONT_CARE);
+  return PERCETTO_INIT(PERCETTO_CLOCK_DONT_CARE);
 }
 
 static void test(void) {

@@ -14,6 +14,11 @@
  * limitations under the License.
  */
 
+// NPERCETTO does not apply to the percetto-atrace library.
+#ifdef NPERCETTO
+#undef NPERCETTO
+#endif
+
 #include "percetto-atrace.h"
 
 #include <assert.h>
@@ -22,7 +27,6 @@
 #include <stdio.h>
 
 #include "percetto.h"
-
 
 struct atrace_group_tracker {
   uint64_t tags[PERCETTO_MAX_GROUP_CATEGORIES];

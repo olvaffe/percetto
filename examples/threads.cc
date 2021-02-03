@@ -22,7 +22,10 @@
 
 #include "percetto.h"
 
-PERCETTO_CATEGORY_DEFINE(test, "Test events");
+#define MY_PERCETTO_CATEGORIES(C) \
+  C(test, "Test events")
+
+PERCETTO_CATEGORY_DEFINE_MULTI(MY_PERCETTO_CATEGORIES);
 
 PERCETTO_TRACK_DEFINE(mycount, PERCETTO_TRACK_COUNTER);
 
@@ -39,17 +42,17 @@ static void test() {
 }
 
 int main(void) {
-  static struct percetto_category* categories[] = {
-      PERCETTO_CATEGORY_PTR(test),
-  };
-  int ret = percetto_init(sizeof(categories) / sizeof(categories[0]),
-                          categories, PERCETTO_CLOCK_DONT_CARE);
+  int ret = PERCETTO_INIT(PERCETTO_CLOCK_DONT_CARE);
   if (ret != 0) {
     fprintf(stderr, "warning: failed to init tracing: %d\n", ret);
     // Note that tracing macros are safe regardless of percetto_init result.
   }
 
-  percetto_register_track(PERCETTO_TRACK_PTR(mycount));
+  ret = PERCETTO_REGISTER_TRACK(mycount);
+  if (ret != 0) {
+    fprintf(stderr, "warning: failed to register track: %d\n", ret);
+    return -1;
+  }
 
   constexpr int num_threads = 5;
 

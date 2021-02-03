@@ -3,6 +3,7 @@
 
 void atrace2(void) {
   int64_t num = 8000000000;
+  (void)num; // avoid unused warning when trace macros are disabled.
   ATRACE_INT64("num", num);
   ATRACE_BEGIN(__func__);
   ATRACE_END();

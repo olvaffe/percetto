@@ -32,7 +32,7 @@ static int trace_init(void) {
   ret = PERCETTO_INIT(PERCETTO_CLOCK_DONT_CARE);
   if (ret != 0)
     return ret;
-  ret = percetto_register_track(PERCETTO_TRACK_PTR(squirrels));
+  ret = PERCETTO_REGISTER_TRACK(squirrels);
   return ret;
 }
 
@@ -40,6 +40,7 @@ static void test(void) {
   TRACE_EVENT(cat, __func__);
   TRACE_EVENT(dog, "test2");
   const char* test3 = "instant";
+  (void)test3; // avoid unused warning when trace macros are disabled.
   TRACE_INSTANT(dog, test3);
 
   // Counter
