@@ -38,14 +38,6 @@ executable(
 )
 
 executable(
-  'size-bloat',
-  'size-bloat.cc',
-  dependencies: perfetto_sdk_dep,
-  cpp_args : ['-fdata-sections', '-ffunction-sections', '-Os'],
-  link_args : ['-Wl,--gc-sections'],
-)
-
-executable(
   'perf-test',
   'perf-test.cc',
   dependencies: percetto_dep,
