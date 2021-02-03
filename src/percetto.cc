@@ -199,12 +199,12 @@ class PercettoDataSource : public perfetto::DataSource<PercettoDataSource> {
 
   // Thread safe.
   static inline void TraceTrackEvent(
-      struct percetto_category* category,
+      const struct percetto_category* category,
       const uint32_t sessions,
       const TrackEvent::Type type,
       const char* name,
       uint64_t timestamp,
-      uint64_t track_uuid,
+      const struct percetto_track* track,
       int64_t extra,
       const struct percetto_event_extended* extended) {
     bool do_once = NeedIncrementalUpdate();
@@ -219,8 +219,8 @@ class PercettoDataSource : public perfetto::DataSource<PercettoDataSource> {
       auto event = packet->set_track_event();
       event->set_type(type);
 
-      if (PERCETTO_UNLIKELY(track_uuid))
-        event->set_track_uuid(perfetto::Track(track_uuid).uuid);
+      if (PERCETTO_UNLIKELY(track))
+        event->set_track_uuid(track->uuid.load(std::memory_order_relaxed));
 
       /* TODO intern strings with EventCategory */
 
@@ -327,6 +327,7 @@ class PercettoDataSource : public perfetto::DataSource<PercettoDataSource> {
   static inline void SetDoingIncrementalUpdate() {
     s_committed_incremental_update = s_target_incremental_update.load(
         std::memory_order_acquire);
+    std::atomic_thread_fence(std::memory_order_acquire);
   }
 
   static void OncePerTraceSession(Base::TraceContext& ctx) {
@@ -370,9 +371,11 @@ class PercettoDataSource : public perfetto::DataSource<PercettoDataSource> {
 
         auto packet =
             NewTracePacket(ctx, TracePacket::SEQ_NEEDS_INCREMENTAL_STATE);
-        perfetto::Track perfetto_track(track->uuid);
         auto track_descriptor = packet->set_track_descriptor();
-        perfetto_track.Serialize(track_descriptor);
+        track_descriptor->set_uuid(
+            track->uuid.load(std::memory_order_relaxed));
+        track_descriptor->set_parent_uuid(
+            track->parent_uuid.load(std::memory_order_relaxed));
         track_descriptor->set_name(track->name);
         if (static_cast<percetto_track_type>(track->type) ==
             PERCETTO_TRACK_COUNTER)
@@ -451,6 +454,11 @@ int percetto_register_track(struct percetto_track* track) {
     struct percetto_track* null_track = NULL;
     // Try to swap new track into this slot.
     if (s_percetto.tracks[i].compare_exchange_strong(null_track, track)) {
+      perfetto::Track perfetto_track(i + 1);
+      track->uuid.store(perfetto_track.uuid, std::memory_order_relaxed);
+      track->parent_uuid.store(perfetto_track.parent_uuid,
+                               std::memory_order_relaxed);
+      std::atomic_thread_fence(std::memory_order_release);
       // Update incremental state to send info about this track.
       PercettoDataSource::KickIncrementalUpdates();
       return 0;
@@ -467,7 +475,7 @@ void percetto_event_begin(struct percetto_category* category,
                           const char* name) {
   PercettoDataSource::TraceTrackEvent(
       category, sessions, TrackEvent::Type::TrackEvent_Type_TYPE_SLICE_BEGIN,
-      name, GetTimestampNs(), 0, 0, NULL);
+      name, GetTimestampNs(), NULL, 0, NULL);
 }
 
 extern "C"
@@ -475,7 +483,7 @@ void percetto_event_end(struct percetto_category* category,
                         uint32_t sessions) {
   PercettoDataSource::TraceTrackEvent(
       category, sessions, TrackEvent::Type::TrackEvent_Type_TYPE_SLICE_END,
-      NULL, GetTimestampNs(), 0, 0, NULL);
+      NULL, GetTimestampNs(), NULL, 0, NULL);
 }
 
 extern "C"
@@ -495,14 +503,14 @@ void percetto_event(struct percetto_category* category,
     // Perfetto UI bug requires flow events to be begin+end pairs.
     PercettoDataSource::TraceTrackEvent(
         category, sessions, TrackEvent::Type::TrackEvent_Type_TYPE_SLICE_BEGIN,
-        data->name, timestamp, data->track_uuid, data->extra, NULL);
+        data->name, timestamp, data->track, data->extra, NULL);
     PercettoDataSource::TraceTrackEvent(
         category, sessions, TrackEvent::Type::TrackEvent_Type_TYPE_SLICE_END,
-        data->name, timestamp + 1, data->track_uuid, 0, NULL);
+        data->name, timestamp + 1, data->track, 0, NULL);
   } else {
     PercettoDataSource::TraceTrackEvent(
         category, sessions, perfetto_type, data->name, timestamp,
-        data->track_uuid, data->extra, NULL);
+        data->track, data->extra, NULL);
   }
 }
 
@@ -524,13 +532,13 @@ void percetto_event_extended(struct percetto_category* category,
     // Perfetto UI bug requires flow events to be begin+end pairs.
     PercettoDataSource::TraceTrackEvent(
         category, sessions, TrackEvent::Type::TrackEvent_Type_TYPE_SLICE_BEGIN,
-        data->name, timestamp, data->track_uuid, data->extra, extended);
+        data->name, timestamp, data->track, data->extra, extended);
     PercettoDataSource::TraceTrackEvent(
         category, sessions, TrackEvent::Type::TrackEvent_Type_TYPE_SLICE_END,
-        data->name, timestamp + 1, data->track_uuid, 0, extended);
+        data->name, timestamp + 1, data->track, 0, extended);
   } else {
     PercettoDataSource::TraceTrackEvent(
         category, sessions, perfetto_type, data->name, timestamp,
-        data->track_uuid, data->extra, extended);
+        data->track, data->extra, extended);
   }
 }

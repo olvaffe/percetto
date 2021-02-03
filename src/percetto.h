@@ -24,13 +24,14 @@
 #ifdef __cplusplus
 #include <atomic>
 using std::atomic_uint_fast32_t;
+using std::atomic_uint_fast64_t;
 using std::atomic_load_explicit;
 using std::memory_order_relaxed;
 using std::size_t;
-#define PERCETTO_ATOMIC_INIT(n) {n}
+#define I_PERCETTO_ATOMIC_INIT(n) {n}
 #else
 #include <stdatomic.h>
-#define PERCETTO_ATOMIC_INIT(n) n
+#define I_PERCETTO_ATOMIC_INIT(n) n
 #endif
 
 #ifdef __cplusplus
@@ -44,12 +45,12 @@ extern "C" {
 /** Define each category with optional tags in a compilation file. */
 #define PERCETTO_CATEGORY_DEFINE(category, description, ...) \
     struct percetto_category g_percetto_category_##category = \
-        { PERCETTO_ATOMIC_INIT(0), #category, description, {__VA_ARGS__}, \
+        { I_PERCETTO_ATOMIC_INIT(0), #category, description, {__VA_ARGS__}, \
         { { 0 }, 0 }, { 0 } }
 
 /** /group/ is a percetto_category_group. */
 #define PERCETTO_GROUP_CATEGORY(group) (struct percetto_category) \
-    { PERCETTO_ATOMIC_INIT(0), NULL, NULL, { NULL }, group, { 0 } }
+    { I_PERCETTO_ATOMIC_INIT(0), NULL, NULL, { NULL }, group, { 0 } }
 
 /** Optionally declare each track in a header file. */
 #define PERCETTO_TRACK_DECLARE(track) \
@@ -78,9 +79,10 @@ extern "C" {
  * Define each track in a compilation file. For /track_type/ see
  * percetto_track_type.
  */
-#define PERCETTO_TRACK_DEFINE(track, track_type, track_uuid_ui64) \
+#define PERCETTO_TRACK_DEFINE(track, track_type) \
     struct percetto_track g_percetto_track_##track = \
-        { track_uuid_ui64, #track, (int32_t)track_type, { 0 } }
+        { I_PERCETTO_ATOMIC_INIT(0), I_PERCETTO_ATOMIC_INIT(0), \
+        #track, (int32_t)track_type, 0, { 0 } }
 
 #define PERCETTO_TRACK_PTR(track) (&g_percetto_track_##track)
 
@@ -148,7 +150,7 @@ enum percetto_event_debug_data_type {
 };
 
 enum percetto_track_type {
-  PERCETTO_TRACK_NORMAL = 0,
+  PERCETTO_TRACK_EVENTS = 0,
   PERCETTO_TRACK_COUNTER,
 };
 
@@ -170,16 +172,19 @@ struct percetto_category {
 };
 
 struct percetto_track {
-  uint64_t uuid;
+  /* uuids are set during the register call. */
+  atomic_uint_fast64_t uuid;
+  atomic_uint_fast64_t parent_uuid;
   const char* name;
   /* See percetto_track_type */
   int32_t type;
-  uint8_t _reserved[64];
+  uint32_t _pad;
+  uint64_t _reserved[6];
 };
 
 struct percetto_event_data {
-  /* Non-zero implies target track, otherwise thread track is used. */
-  uint64_t track_uuid;
+  /* Non-NULL implies target track, otherwise thread track is used. */
+  const struct percetto_track* track;
   int64_t extra;
   /* Non-zero implies provided timestamp. */
   uint64_t timestamp;
@@ -292,13 +297,13 @@ static inline void percetto_cleanup_end(struct percetto_category** category) {
         __attribute__((cleanup(percetto_cleanup_end), unused)) = \
             &g_percetto_category_##category
 
-#define TRACE_ANY_WITH_ARGS_PTR(type, category, track_id, ts, str_name, \
+#define TRACE_ANY_WITH_ARGS_PTR(type, category, ptrack, ts, str_name, \
                                 extra_value) \
     do { \
       const uint32_t I_PERCETTO_UID(mask) = PERCETTO_LOAD_MASK_PTR(category); \
       if (PERCETTO_UNLIKELY(I_PERCETTO_UID(mask))) { \
         struct percetto_event_data I_PERCETTO_UID(data) = { \
-          .track_uuid = (uint64_t)(track_id), \
+          .track = ptrack, \
           .extra = (int64_t)(extra_value), \
           .timestamp = (ts), \
           .name = (str_name) \
@@ -308,41 +313,41 @@ static inline void percetto_cleanup_end(struct percetto_category** category) {
       } \
     } while(0)
 
-#define TRACE_ANY_WITH_ARGS(type, category, track_id, ts, str_name, \
+#define TRACE_ANY_WITH_ARGS(type, category, track, ts, str_name, \
                             extra_value) \
-    TRACE_ANY_WITH_ARGS_PTR(type, &g_percetto_category_##category, track_id, \
+    TRACE_ANY_WITH_ARGS_PTR(type, &g_percetto_category_##category, track, \
         ts, str_name, extra_value)
 
 #define TRACE_EVENT_BEGIN(category, str_name) \
-    TRACE_ANY_WITH_ARGS(PERCETTO_EVENT_BEGIN, category, 0, 0, str_name, 0)
+    TRACE_ANY_WITH_ARGS(PERCETTO_EVENT_BEGIN, category, NULL, 0, str_name, 0)
 
 #define TRACE_EVENT_END(category) \
-    TRACE_ANY_WITH_ARGS(PERCETTO_EVENT_END, category, 0, 0, NULL, 0)
+    TRACE_ANY_WITH_ARGS(PERCETTO_EVENT_END, category, NULL, 0, NULL, 0)
 
 #define TRACE_EVENT_BEGIN_ON_TRACK(category, track, timestamp, str_name) \
     TRACE_ANY_WITH_ARGS(PERCETTO_EVENT_BEGIN, category, \
-        g_percetto_track_##track.uuid, timestamp, str_name, 0)
+        &g_percetto_track_##track, timestamp, str_name, 0)
 
 #define TRACE_EVENT_END_ON_TRACK(category, track, timestamp) \
     TRACE_ANY_WITH_ARGS(PERCETTO_EVENT_END, category, \
-        g_percetto_track_##track.uuid, timestamp, NULL, 0)
+        &g_percetto_track_##track, timestamp, NULL, 0)
 
 #define TRACE_INSTANT(category, str_name) \
-    TRACE_ANY_WITH_ARGS(PERCETTO_EVENT_INSTANT, category, 0, 0, str_name, 0)
+    TRACE_ANY_WITH_ARGS(PERCETTO_EVENT_INSTANT, category, NULL, 0, str_name, 0)
 
 #define TRACE_INSTANT_ON_TRACK(category, track, str_name) \
     TRACE_ANY_WITH_ARGS(PERCETTO_EVENT_INSTANT, category, \
-        g_percetto_track_##track.uuid, 0, str_name, 0)
+        &g_percetto_track_##track, 0, str_name, 0)
 
 #define TRACE_COUNTER(category, track, i64_value) \
     TRACE_ANY_WITH_ARGS(PERCETTO_EVENT_COUNTER, category, \
-        g_percetto_track_##track.uuid, 0, NULL, i64_value)
+        &g_percetto_track_##track, 0, NULL, i64_value)
 
 #define TRACE_FLOW(category, str_name, i64_cookie) \
     TRACE_ANY_WITH_ARGS(PERCETTO_EVENT_INSTANT, category, \
-        0, 0, str_name, i64_cookie)
+        NULL, 0, str_name, i64_cookie)
 
-/* Debug annotation macros */
+/* Debug data annotation macros */
 
 #define PERCETTO_BOOL(str_name, value) { \
     .extended = { .type = PERCETTO_EVENT_EXTENDED_DEBUG_DATA, .next = NULL }, \
@@ -386,7 +391,7 @@ static inline void percetto_cleanup_end(struct percetto_category** category) {
       if (PERCETTO_UNLIKELY(I_PERCETTO_UID(mask))) { \
         struct percetto_event_debug_data I_PERCETTO_UID(dbg1) = data; \
         struct percetto_event_data I_PERCETTO_UID(evdata) = { \
-          .track_uuid = 0, \
+          .track = NULL, \
           .extra = 0, \
           .timestamp = 0, \
           .name = I_PERCETTO_UID(dbg1).name \
@@ -402,7 +407,7 @@ static inline void percetto_cleanup_end(struct percetto_category** category) {
       const uint32_t I_PERCETTO_UID(mask) = PERCETTO_LOAD_MASK(category); \
       if (PERCETTO_UNLIKELY(I_PERCETTO_UID(mask))) { \
         struct percetto_event_data I_PERCETTO_UID(evdata) = { \
-          .track_uuid = 0, \
+          .track = NULL, \
           .extra = 0, \
           .timestamp = 0, \
           .name = (str_name) \
@@ -421,7 +426,7 @@ static inline void percetto_cleanup_end(struct percetto_category** category) {
       const uint32_t I_PERCETTO_UID(mask) = PERCETTO_LOAD_MASK(category); \
       if (PERCETTO_UNLIKELY(I_PERCETTO_UID(mask))) { \
         struct percetto_event_data I_PERCETTO_UID(evdata) = { \
-          .track_uuid = 0, \
+          .track = NULL, \
           .extra = 0, \
           .timestamp = 0, \
           .name = (str_name) \

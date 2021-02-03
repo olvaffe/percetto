@@ -180,7 +180,7 @@ void atrace_create_category(struct percetto_category** result, uint64_t tags) {
   *result = category;
 }
 
-void atrace_create_counter(uint64_t* result, const char* name) {
+void atrace_create_counter(struct percetto_track** result, const char* name) {
   if (s_percetto_status == PERCETTO_STATUS_NOT_STARTED)
     atrace_init();
 
@@ -192,7 +192,7 @@ void atrace_create_counter(uint64_t* result, const char* name) {
   // Check if we already have a matching group category for these tags.
   for (int i = 0; i < s_tracks.count; ++i) {
     if (s_tracks.tracks[i].name == name) {
-      *result = s_tracks.tracks[i].uuid;
+      *result = &s_tracks.tracks[i];
       return;
     }
   }
@@ -205,14 +205,13 @@ void atrace_create_counter(uint64_t* result, const char* name) {
   struct percetto_track* track = &s_tracks.tracks[s_tracks.count];
   ++s_tracks.count;
   track->name = name;
-  track->uuid = s_tracks.count + 1337; // arbitrary uuid
   track->type = PERCETTO_TRACK_COUNTER;
 
   // Holding lock during register to avoid another thread using the same track
   // before it's ready.
   percetto_register_track(track);
 
-  *result = track->uuid;
+  *result = track;
 }
 
 void atrace_event(struct percetto_category* category,

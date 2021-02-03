@@ -85,7 +85,7 @@ __attribute__((visibility("default")))
 void atrace_create_category(struct percetto_category** result, uint64_t tags);
 
 __attribute__((visibility("default")))
-void atrace_create_counter(uint64_t* result, const char* name);
+void atrace_create_counter(struct percetto_track** result, const char* name);
 
 __attribute__((visibility("default")))
 void atrace_event(struct percetto_category* category,
@@ -93,13 +93,13 @@ void atrace_event(struct percetto_category* category,
                   int32_t type,
                   const struct percetto_event_data* data);
 
-#define ATRACE_ANY_WITH_ARGS_PTR(type, category, track_id, ts, str_name, \
+#define ATRACE_ANY_WITH_ARGS_PTR(type, category, ptrack, ts, str_name, \
                                  extra_value) \
     do { \
       const uint32_t I_PERCETTO_UID(mask) = PERCETTO_LOAD_MASK_PTR(category); \
       if (PERCETTO_UNLIKELY(I_PERCETTO_UID(mask))) { \
         struct percetto_event_data I_PERCETTO_UID(data) = { \
-          .track_uuid = (uint64_t)(track_id), \
+          .track = ptrack, \
           .extra = (int64_t)(extra_value), \
           .timestamp = (ts), \
           .name = (str_name) \
@@ -113,12 +113,12 @@ void atrace_event(struct percetto_category* category,
         static struct percetto_category* I_PERCETTO_UID(cat) = NULL; \
         if (PERCETTO_UNLIKELY(!I_PERCETTO_UID(cat))) \
             atrace_create_category(&I_PERCETTO_UID(cat), ATRACE_TAG); \
-        ATRACE_ANY_WITH_ARGS_PTR(type, I_PERCETTO_UID(cat), 0, 0, name, extra); \
+        ATRACE_ANY_WITH_ARGS_PTR(type, I_PERCETTO_UID(cat), NULL, 0, name, extra); \
     } while (0)
 
 #define ATRACE_COUNTER(name, value) do { \
         static struct percetto_category* I_PERCETTO_UID(cat) = NULL; \
-        static uint64_t I_PERCETTO_UID(trk) = 0; \
+        static struct percetto_track* I_PERCETTO_UID(trk) = 0; \
         if (PERCETTO_UNLIKELY(!I_PERCETTO_UID(cat))) { \
             atrace_create_category(&I_PERCETTO_UID(cat), ATRACE_TAG); \
             atrace_create_counter(&I_PERCETTO_UID(trk), name); \

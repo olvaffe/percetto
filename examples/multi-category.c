@@ -25,7 +25,7 @@
 
 PERCETTO_CATEGORY_DEFINE_MULTI(MY_PERCETTO_CATEGORIES);
 
-PERCETTO_TRACK_DEFINE(squirrels, PERCETTO_TRACK_COUNTER, 42);
+PERCETTO_TRACK_DEFINE(squirrels, PERCETTO_TRACK_COUNTER);
 
 static int trace_init(void) {
   int ret;
@@ -56,7 +56,6 @@ static void test(void) {
 }
 
 int main(void) {
-  const int wait = 60;
   const int event_count = 100;
   int i;
   int ret;
@@ -64,18 +63,6 @@ int main(void) {
   ret = trace_init();
   if (ret != 0) {
     fprintf(stderr, "failed to init tracing: %d\n", ret);
-    return -1;
-  }
-
-  test();
-
-  for (i = 0; i < wait; i++) {
-    if (PERCETTO_CATEGORY_IS_ENABLED(cat) || PERCETTO_CATEGORY_IS_ENABLED(dog))
-      break;
-    sleep(1);
-  }
-  if (i == wait) {
-    printf("timed out waiting for tracing\n");
     return -1;
   }
 

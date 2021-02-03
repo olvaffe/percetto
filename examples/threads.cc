@@ -24,9 +24,17 @@
 
 PERCETTO_CATEGORY_DEFINE(test, "Test events");
 
+PERCETTO_TRACK_DEFINE(mycount, PERCETTO_TRACK_COUNTER);
+
 static void test() {
   for (;;) {
     TRACE_EVENT(test, __func__);
+
+    // This makes no sense, just demonstrates setting the same counter
+    // from multiple threads.
+    static int count = 1;
+    count++;
+    TRACE_COUNTER(test, mycount, count);
   }
 }
 
@@ -40,6 +48,8 @@ int main(void) {
     fprintf(stderr, "warning: failed to init tracing: %d\n", ret);
     // Note that tracing macros are safe regardless of percetto_init result.
   }
+
+  percetto_register_track(PERCETTO_TRACK_PTR(mycount));
 
   constexpr int num_threads = 5;
 

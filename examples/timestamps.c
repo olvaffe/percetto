@@ -25,7 +25,7 @@
 
 PERCETTO_CATEGORY_DEFINE(gfx, "Graphics events");
 
-PERCETTO_TRACK_DEFINE(gpu, PERCETTO_TRACK_NORMAL, 13);
+PERCETTO_TRACK_DEFINE(gpu, PERCETTO_TRACK_EVENTS);
 
 static int trace_init(void) {
   int ret;
@@ -60,32 +60,17 @@ static void test(void) {
 }
 
 int main(void) {
-  const int wait = 60;
-  const int event_count = 100;
-  int i;
-  int ret;
-
-  ret = trace_init();
+  int ret = trace_init();
   if (ret != 0) {
     fprintf(stderr, "failed to init tracing: %d\n", ret);
     return -1;
   }
 
-  for (i = 0; i < wait; i++) {
-    if (PERCETTO_CATEGORY_IS_ENABLED(gfx))
-      break;
-    sleep(1);
-  }
-  if (i == wait) {
-    printf("timed out waiting for tracing\n");
-    return -1;
-  }
-
-  for (i = 0; i < event_count; i++) {
+  for (;;) {
     TRACE_EVENT(gfx, "do_test_iteration");
     test();
 
-    struct timespec t = {0, 50000000};
+    struct timespec t = {0, 10000000};
     nanosleep(&t, NULL);
   }
 
