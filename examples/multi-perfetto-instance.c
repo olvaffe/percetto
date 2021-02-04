@@ -14,17 +14,20 @@
  * limitations under the License.
  */
 
+#define _GNU_SOURCE  // for nanosleep
+
 #include <assert.h>
 #include <stdio.h>
+#include <time.h>
 #include <unistd.h>
 
 #include "percetto.h"
 #include "multi-perfetto-shlib.h"
 
-#define MY_PERCETTO_CATEGORIES(C) \
+#define MY_PERCETTO_CATEGORIES(C, G) \
   C(test, "Test events")
 
-PERCETTO_CATEGORY_DEFINE_MULTI(MY_PERCETTO_CATEGORIES);
+PERCETTO_CATEGORY_DEFINE(MY_PERCETTO_CATEGORIES);
 
 static int trace_init(void) {
   return PERCETTO_INIT(PERCETTO_CLOCK_DONT_CARE);
@@ -39,7 +42,6 @@ static void test(void) {
 }
 
 int main(void) {
-  const int wait = 60;
   const int event_count = 100;
   int i;
   int ret;
@@ -56,20 +58,12 @@ int main(void) {
     return -1;
   }
 
-  test();
-
-  for (i = 0; i < wait; i++) {
-    if (PERCETTO_CATEGORY_IS_ENABLED(test))
-      break;
-    sleep(1);
+  for (;;) {
+    for (i = 0; i < event_count; i++)
+      test();
+    struct timespec t = {0, 10000000};
+    nanosleep(&t, NULL);
   }
-  if (i == wait) {
-    printf("timed out waiting for tracing\n");
-    return -1;
-  }
-
-  for (i = 0; i < event_count; i++)
-    test();
 
   return 0;
 }

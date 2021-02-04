@@ -80,10 +80,14 @@ extern "C" {
 __attribute__((visibility("default"))) void atrace_init();
 
 __attribute__((visibility("default")))
-void atrace_create_category(struct percetto_category** result, uint64_t tags);
+void atrace_create_category(atomic_uintptr_t* result, uint64_t tags);
 
 __attribute__((visibility("default")))
-void atrace_create_counter(struct percetto_track** result, const char* name);
+void atrace_create_category_and_counter(
+    atomic_uintptr_t* out_category,
+    uint64_t category_tags,
+    atomic_uintptr_t* out_track,
+    const char* track_name);
 
 __attribute__((visibility("default")))
 void atrace_event(struct percetto_category* category,
@@ -102,7 +106,8 @@ void atrace_event(struct percetto_category* category,
 #define ATRACE_ANY_WITH_ARGS_PTR(type, category, ptrack, ts, str_name, \
                                  extra_value) \
     do { \
-      const uint32_t I_PERCETTO_UID(mask) = I_PERCETTO_LOAD_MASK_PTR(category); \
+      const uint32_t I_PERCETTO_UID(mask) = \
+          I_PERCETTO_LOAD_MASK_PTR(category); \
       if (PERCETTO_UNLIKELY(I_PERCETTO_UID(mask))) { \
         struct percetto_event_data I_PERCETTO_UID(data) = { \
           .track = ptrack, \
@@ -116,21 +121,26 @@ void atrace_event(struct percetto_category* category,
     } while(0)
 
 #define ATRACE_ANY(type, name, extra) do { \
-        static struct percetto_category* I_PERCETTO_UID(cat) = NULL; \
-        if (PERCETTO_UNLIKELY(!I_PERCETTO_UID(cat))) \
+        static atomic_uintptr_t I_PERCETTO_UID(cat) = 0; \
+        if (PERCETTO_UNLIKELY(!(atomic_load_explicit(&I_PERCETTO_UID(cat), \
+                                memory_order_acquire)))) \
             atrace_create_category(&I_PERCETTO_UID(cat), ATRACE_TAG); \
-        ATRACE_ANY_WITH_ARGS_PTR(type, I_PERCETTO_UID(cat), NULL, 0, name, extra); \
+        ATRACE_ANY_WITH_ARGS_PTR(type, \
+            (struct percetto_category*)I_PERCETTO_UID(cat), NULL, 0, name, \
+            extra); \
     } while (0)
 
 #define ATRACE_COUNTER(name, value) do { \
-        static struct percetto_category* I_PERCETTO_UID(cat) = NULL; \
-        static struct percetto_track* I_PERCETTO_UID(trk) = 0; \
-        if (PERCETTO_UNLIKELY(!I_PERCETTO_UID(cat))) { \
-            atrace_create_category(&I_PERCETTO_UID(cat), ATRACE_TAG); \
-            atrace_create_counter(&I_PERCETTO_UID(trk), name); \
+        static atomic_uintptr_t I_PERCETTO_UID(cat) = 0; \
+        static atomic_uintptr_t I_PERCETTO_UID(trk) = 0; \
+        if (PERCETTO_UNLIKELY(!(atomic_load_explicit(&I_PERCETTO_UID(cat), \
+                                memory_order_acquire)))) { \
+            atrace_create_category_and_counter(&I_PERCETTO_UID(cat), \
+                ATRACE_TAG, &I_PERCETTO_UID(trk), name); \
         } \
-        ATRACE_ANY_WITH_ARGS_PTR(PERCETTO_EVENT_COUNTER, I_PERCETTO_UID(cat), \
-            I_PERCETTO_UID(trk), 0, NULL, value); \
+        ATRACE_ANY_WITH_ARGS_PTR(PERCETTO_EVENT_COUNTER, \
+            (struct percetto_category*)I_PERCETTO_UID(cat), \
+            (struct percetto_track*)I_PERCETTO_UID(trk), 0, NULL, value); \
     } while (0)
 
 #endif // NPERCETTO

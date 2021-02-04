@@ -25,100 +25,169 @@
 #include <atomic>
 using std::atomic_uint_fast32_t;
 using std::atomic_uint_fast64_t;
+using std::atomic_uintptr_t;
 using std::atomic_load_explicit;
 using std::memory_order_relaxed;
+using std::memory_order_acquire;
 using std::size_t;
-#define I_PERCETTO_ATOMIC_INIT(n) {n}
+#define I_PERCETTO_ATOMIC_INIT(n) {ATOMIC_VAR_INIT(n)}
 #else
 #include <stdatomic.h>
-#define I_PERCETTO_ATOMIC_INIT(n) n
+#define I_PERCETTO_ATOMIC_INIT(n) ATOMIC_VAR_INIT(n)
 #endif
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#ifdef NPERCETTO
-#define PERCETTO_CATEGORY_DECLARE(category)
-#define PERCETTO_CATEGORY_DEFINE(category, description, ...)
-#define PERCETTO_TRACK_DECLARE(track)
-#define PERCETTO_CATEGORY_DECLARE_MULTI(MACRO)
-#define PERCETTO_CATEGORY_DEFINE_MULTI(MACRO)
-#else
-
-/** Optionally declare each category in a header file. */
-#define PERCETTO_CATEGORY_DECLARE(category) \
-    extern struct percetto_category g_percetto_category_##category
-
-/** Define each category with optional tags in a compilation file. */
-#define PERCETTO_CATEGORY_DEFINE(category, description, ...) \
-    struct percetto_category g_percetto_category_##category = \
-        { I_PERCETTO_ATOMIC_INIT(0), #category, description, {__VA_ARGS__}, \
-        { { 0 }, 0 }, { 0 } }
-
-/** /group/ is a percetto_category_group. */
-#define PERCETTO_GROUP_CATEGORY(group) (struct percetto_category) \
-    { I_PERCETTO_ATOMIC_INIT(0), NULL, NULL, { NULL }, group, { 0 } }
-
-/** Optionally declare each track in a header file. */
-#define PERCETTO_TRACK_DECLARE(track) \
-    extern struct percetto_track g_percetto_track_##track
-
-/** Optionally declare a list of categories in a header. */
-#define PERCETTO_CATEGORY_DECLARE_MULTI(MACRO) \
-    MACRO(I_PERCETTO_CATEGORY_DECLARE_SEMICOLON)
-
-/** Define a list of categories. */
-#define PERCETTO_CATEGORY_DEFINE_MULTI(MACRO) \
-    MACRO(I_PERCETTO_CATEGORY_DEFINE_SEMICOLON) \
-    static struct percetto_category* g_percetto_categories[] = { \
-        MACRO(I_PERCETTO_CATEGORY_PTR_COMMA) \
-    };
-
-#endif /* NPERCETTO */
-
-/**
- * Define each track in a compilation file. For /track_type/ see
- * percetto_track_type.
- */
-#define PERCETTO_TRACK_DEFINE(track, track_type) \
-    struct percetto_track g_percetto_track_##track = \
-        { I_PERCETTO_ATOMIC_INIT(0), I_PERCETTO_ATOMIC_INIT(0), \
-        #track, (int32_t)track_type, 0, { 0 } }
-
-#define PERCETTO_TRACK_PTR(track) (&g_percetto_track_##track)
-
-#define PERCETTO_CATEGORY_PTR(category) (&g_percetto_category_##category)
-
-#ifdef NPERCETTO
-#define PERCETTO_CATEGORY_IS_ENABLED(category) 0
-#else
-#define PERCETTO_CATEGORY_IS_ENABLED(category) \
-    (!!I_PERCETTO_LOAD_MASK(category))
-#endif /* NPERCETTO */
-
-#define PERCETTO_LIKELY(x) __builtin_expect(!!(x), 1)
-#define PERCETTO_UNLIKELY(x) __builtin_expect(!!(x), 0)
-
-/* Internal macros prefixed with I_. */
-#define I_PERCETTO_UID3(a, b) percetto_uid_##a##b
-#define I_PERCETTO_UID2(a, b) I_PERCETTO_UID3(a, b)
-#define I_PERCETTO_UID(prefix) I_PERCETTO_UID2(prefix, __LINE__)
-
-#define I_PERCETTO_CATEGORY_DECLARE_SEMICOLON(category, description, ...) \
-    PERCETTO_CATEGORY_DECLARE(category);
-
-#define I_PERCETTO_CATEGORY_DEFINE_SEMICOLON(category, description, ...) \
-    PERCETTO_CATEGORY_DEFINE(category, description, __VA_ARGS__);
-
-#define I_PERCETTO_CATEGORY_PTR_COMMA(category, description, ...) \
-    PERCETTO_CATEGORY_PTR(category),
-
 #define PERCETTO_MAX_CATEGORIES 256
 #define PERCETTO_MAX_GROUP_CATEGORIES 32
 #define PERCETTO_MAX_GROUP_SIZE 4
 #define PERCETTO_MAX_CATEGORY_TAGS 4
 #define PERCETTO_MAX_TRACKS 32
+
+#ifdef NPERCETTO
+#define PERCETTO_CATEGORY_DECLARE(MACRO)
+#define PERCETTO_CATEGORY_DEFINE(MACRO)
+#define PERCETTO_CATEGORY_IS_ENABLED(category) 0
+#define PERCETTO_TRACK_DEFINE(track, track_type)
+#define PERCETTO_INIT(clock_id) 0
+#define PERCETTO_REGISTER_TRACK(track) 0
+#else
+
+/** Optionally declare categories in a header. */
+#define PERCETTO_CATEGORY_DECLARE(MACRO) \
+    MACRO(I_PERCETTO_CATEGORY_DECLARE_SEMICOLON, I_PERCETTO_BLANK) \
+    MACRO(I_PERCETTO_BLANK, I_PERCETTO_CATEGORY_DECLARE_SEMICOLON)
+
+/** Define categories in the compilation file where PERCETTO_INIT is called. */
+#define PERCETTO_CATEGORY_DEFINE(MACRO) \
+    MACRO(I_PERCETTO_CATEGORY_EXT_DEFINE_SEMICOLON, I_PERCETTO_BLANK) \
+    MACRO(I_PERCETTO_BLANK, I_PERCETTO_GROUP_CATEGORY_EXT_DEFINE) \
+    MACRO(I_PERCETTO_CATEGORY_DEFINE_SEMICOLON, I_PERCETTO_BLANK) \
+    MACRO(I_PERCETTO_BLANK, I_PERCETTO_GROUP_CATEGORY_DEFINE) \
+    static struct percetto_category* g_percetto_categories[] = { \
+        MACRO(I_PERCETTO_CATEGORY_PTR_COMMA, I_PERCETTO_BLANK) \
+        MACRO(I_PERCETTO_BLANK, I_PERCETTO_CATEGORY_PTR_COMMA) \
+    };
+
+/** Efficiently check if the category is enabled. */
+#define PERCETTO_CATEGORY_IS_ENABLED(category) \
+    (!!I_PERCETTO_LOAD_MASK(category))
+
+/** Optionally declare tracks in a header. */
+#define PERCETTO_TRACK_DECLARE(track) \
+    extern struct percetto_track g_percetto_track_##track
+
+/**
+ * Define each track in a compilation file. For track_type see
+ * percetto_track_type.
+ */
+#define PERCETTO_TRACK_DEFINE(track, track_type) \
+    struct percetto_track g_percetto_track_##track = \
+        { I_PERCETTO_ATOMIC_INIT(0), I_PERCETTO_ATOMIC_INIT(0), \
+        #track, (int32_t)track_type, 0, NULL }
+
+/**
+ * Initialize the Percetto library.
+ * Not thread safe. Only one call is allowed.
+ * PERCETTO_CATEGORY_DEFINE must be called earlier.
+ *
+ * @param clock_id The clock that will be used for all trace event timestamps,
+ *   whether passed through the API or retrieved internally.
+ *   BUILTIN_CLOCK_BOOTTIME is the recommended choice, but some systems may not
+ *   support it. PERCETTO_CLOCK_DONT_CARE will try to use BOOTTIME and fall
+ *   back onto MONOTONIC. If you plan to manually set timestamps on any events,
+ *   you must confirm that the clock works (ie: by checking the result of
+ *   clock_gettime) and then pass in the corresponding PERCETTO_CLOCK enum
+ *   rather than using PERCETTO_CLOCK_DONT_CARE.
+ *
+ * @return 0 on success or negative error code on failure. After failure, it is
+ * safe to continue the application and the calls to trace macros below will
+ * behave as if tracing is always disabled.
+ * TODO(jbates): document all error codes.
+ */
+#define PERCETTO_INIT(clock_id) percetto_init( \
+    sizeof(g_percetto_categories) / sizeof(g_percetto_categories[0]), \
+    g_percetto_categories, clock_id)
+
+/**
+ * Up to PERCETTO_MAX_TRACKS tracks can be added for counters or events that
+ * are not associated with the calling thread.
+ * Tracks can never be removed for the lifetime of the process.
+ * Thread safe. Can be called from any thread after percetto_init.
+ */
+#define PERCETTO_REGISTER_TRACK(track) \
+    percetto_register_track(I_PERCETTO_TRACK_PTR(track))
+
+/* Internal macros prefixed with I_. */
+
+#define I_PERCETTO_BLANK(...)
+
+#define I_PERCETTO_NINTH(a1, a2, a3, a4, a5, a6, a7, a8, a9, ...) a9
+#define I_PERCETTO_COUNT_ARGS(...) \
+    I_PERCETTO_NINTH(dummy, __VA_ARGS__, 7, 6, 5, 4, 3, 2, 1, 0)
+#define I_PERCETTO_CONCAT(a, b) a ## b
+#define I_PERCETTO_CONCAT2(a, b) I_PERCETTO_CONCAT(a, b)
+
+#define I_PERCETTO_LIST_CAT_PTRS2(C1, C2) \
+    I_PERCETTO_CATEGORY_PTR(C1), I_PERCETTO_CATEGORY_PTR(C2)
+
+#define I_PERCETTO_LIST_CAT_PTRS3(C1, C2, C3) \
+    I_PERCETTO_CATEGORY_PTR(C1), I_PERCETTO_LIST_CAT_PTRS2(C2, C3)
+
+#define I_PERCETTO_LIST_CAT_PTRS4(C1, C2, C3, C4) \
+    I_PERCETTO_LIST_CAT_PTRS2(C1, C2), I_PERCETTO_CATEGORY_PTR(C3, C4)
+
+#define I_PERCETTO_GROUP_CATEGORY_EXT_DEFINE(category, ...) \
+    struct percetto_category_ext g_percetto_category_ext_##category = \
+        { { NULL }, { I_PERCETTO_CONCAT2(I_PERCETTO_LIST_CAT_PTRS, \
+          I_PERCETTO_COUNT_ARGS(__VA_ARGS__))(__VA_ARGS__) }, NULL };
+
+#define I_PERCETTO_GROUP_CATEGORY_DEFINE(category, ...) \
+    struct percetto_category g_percetto_category_##category = \
+        { I_PERCETTO_ATOMIC_INIT(0), NULL, \
+          &g_percetto_category_ext_##category };
+
+#define I_PERCETTO_CATEGORY_DECLARE(category) \
+    extern struct percetto_category g_percetto_category_##category
+
+#define I_PERCETTO_CATEGORY_DEFINE(category, ...) \
+    struct percetto_category g_percetto_category_##category = \
+        { I_PERCETTO_ATOMIC_INIT(0), #category, \
+          &g_percetto_category_ext_##category }
+
+#define I_PERCETTO_CATEGORY_EXT_DEFINE_SEMICOLON(category, ...) \
+    struct percetto_category_ext g_percetto_category_ext_##category = \
+        { {__VA_ARGS__}, { NULL }, NULL };
+
+#define I_PERCETTO_TRACK_PTR(track) (&g_percetto_track_##track)
+
+#define I_PERCETTO_CATEGORY_PTR(category) (&g_percetto_category_##category)
+
+#define I_PERCETTO_UID3(a, b) percetto_uid_##a##b
+#define I_PERCETTO_UID2(a, b) I_PERCETTO_UID3(a, b)
+#define I_PERCETTO_UID(prefix) I_PERCETTO_UID2(prefix, __LINE__)
+
+#define I_PERCETTO_CATEGORY_DECLARE_SEMICOLON(category, ...) \
+    I_PERCETTO_CATEGORY_DECLARE(category);
+
+#define I_PERCETTO_CATEGORY_DEFINE_SEMICOLON(category, ...) \
+    I_PERCETTO_CATEGORY_DEFINE(category, __VA_ARGS__);
+
+#define I_PERCETTO_CATEGORY_PTR_COMMA(category, ...) \
+    I_PERCETTO_CATEGORY_PTR(category),
+
+#define I_PERCETTO_LOAD_MASK_PTR(category) \
+    (atomic_load_explicit(&(category)->sessions, memory_order_relaxed))
+
+#define I_PERCETTO_LOAD_MASK(category) \
+    I_PERCETTO_LOAD_MASK_PTR(&g_percetto_category_##category)
+
+#endif /* NPERCETTO */
+
+#define PERCETTO_LIKELY(x) __builtin_expect(!!(x), 1)
+#define PERCETTO_UNLIKELY(x) __builtin_expect(!!(x), 0)
 
 enum percetto_clock {
   /* Same as perfetto BuiltinClock. */
@@ -160,21 +229,19 @@ enum percetto_track_type {
   PERCETTO_TRACK_COUNTER,
 };
 
-struct percetto_category_group {
-  /* For group categories, two or more of these child_ids are set to the
-   * indices of corresponding categories. */
-  uint8_t child_ids[PERCETTO_MAX_GROUP_SIZE];
-  uint32_t count;
-};
-
 struct percetto_category {
   atomic_uint_fast32_t sessions;
+  /* Category name or null for group categories. */
   const char* name;
-  const char* description;
-  const char* tags[PERCETTO_MAX_CATEGORY_TAGS];
-  /* Only used for group categories. */
-  struct percetto_category_group group;
-  uint64_t _reserved[3];
+  struct percetto_category_ext* ext;
+};
+
+struct percetto_category_ext {
+  /* First string is description, followed by tags. */
+  const char* strings[PERCETTO_MAX_CATEGORY_TAGS + 1];
+  /* Only used for group categories. Two or more can be non-null for groups. */
+  const struct percetto_category* group[PERCETTO_MAX_GROUP_SIZE];
+  void* _reserved;
 };
 
 struct percetto_track {
@@ -185,7 +252,7 @@ struct percetto_track {
   /* See percetto_track_type */
   int32_t type;
   uint32_t _pad;
-  uint64_t _reserved[6];
+  void* _reserved;
 };
 
 struct percetto_event_data {
@@ -218,61 +285,25 @@ struct percetto_event_debug_data {
   };
 };
 
-#ifdef NPERCETTO
-#define PERCETTO_INIT(clock_id) 0
-#define PERCETTO_REGISTER_TRACK(track) 0
-#else
 /**
- * Macro variant of percetto_init.
- * PERCETTO_CATEGORY_DEFINE_MULTI must be called earlier.
- */
-#define PERCETTO_INIT(clock_id) percetto_init( \
-    sizeof(g_percetto_categories) / sizeof(g_percetto_categories[0]), \
-    g_percetto_categories, clock_id)
-/**
- * Macro variant of percetto_register_track.
- */
-#define PERCETTO_REGISTER_TRACK(track) \
-    percetto_register_track(PERCETTO_TRACK_PTR(track))
-#endif /* NPERCETTO */
-
-/**
- * Initialize the Percetto library.
- * Not thread safe. Only one call is allowed.
- * Instead of calling this directly, it is better to use the PERCETTO_INIT
- * macro so that Percetto can optionally be disabled by defining NPERCETTO
- * at compile time.
- *
- * /categories/ param must be a pointer to static storage.
- * /clock_id/ is the clock that will be used for all trace event timestamps,
- *   whether passed through the API or retrieved internally.
- *   BUILTIN_CLOCK_BOOTTIME is the recommended choice, but some systems may not
- *   support it. PERCETTO_CLOCK_DONT_CARE will try to use BOOTTIME and fall
- *   back onto MONOTONIC. If you plan to manually set timestamps on any events,
- *   you must confirm that the clock works (ie: by checking the result of
- *   clock_gettime) and then pass in the corresponding PERCETTO_CLOCK enum
- *   rather than using PERCETTO_CLOCK_DONT_CARE.
- *
- * Returns 0 on success or negative error code on failure. After failure, it is
- * safe to continue the application and the calls to trace macros below will
- * behave as if tracing is always disabled.
- * TODO(jbates): document all error codes.
+ * See PERCETTO_INIT.
  */
 int percetto_init(size_t category_count,
                   struct percetto_category** categories,
                   enum percetto_clock clock_id);
 
 /**
- * Up to PERCETTO_MAX_TRACKS tracks can be added for counters or flow events.
- * Tracks can never be removed for the lifetime of the process.
- * Thread safe. Can be called from any thread after percetto_init.
+ * See PERCETTO_REGISTER_TRACK.
  */
 int percetto_register_track(struct percetto_track* track);
 
 /**
+ * Registers a group category.
  * Up to PERCETTO_MAX_GROUP_CATEGORIES can be added.
  * Categories can never be removed for the lifetime of the process.
  * Thread safe. Can be called from any thread after percetto_init.
+ *
+ * @param category Category data in persistent memory.
  */
 int percetto_register_group_category(struct percetto_category* category);
 
@@ -298,18 +329,12 @@ void percetto_event_extended(struct percetto_category* category,
                              const struct percetto_event_data* data,
                              const struct percetto_event_extended* extended);
 
+/** See TRACE_EVENT macros. */
 static inline void percetto_cleanup_end(struct percetto_category** category) {
-  const uint32_t mask = atomic_load_explicit(&(*category)->sessions,
-                                             memory_order_relaxed);
+  const uint32_t mask = I_PERCETTO_LOAD_MASK_PTR(*category);
   if (PERCETTO_UNLIKELY(mask))
     percetto_event_end(*category, mask);
 }
-
-#define I_PERCETTO_LOAD_MASK_PTR(category) \
-    (atomic_load_explicit(&(category)->sessions, memory_order_relaxed))
-
-#define I_PERCETTO_LOAD_MASK(category) \
-    I_PERCETTO_LOAD_MASK_PTR(&g_percetto_category_##category)
 
 #ifdef NPERCETTO
 #define TRACE_EVENT(category, str_name)
@@ -317,8 +342,13 @@ static inline void percetto_cleanup_end(struct percetto_category** category) {
 #else
 
 /**
- * Trace the current scope. /str_name/ is only evaluated when tracing is
- * enabled.
+ * Trace the current scope.
+ *
+ * @param category Category identifier.
+ * @param str_name Must evaluate to a const char*. It is only evaluated when
+ * tracing is enabled, but must outlive its own scope. Ie, do not do this:
+ * str::string(compute_string()).c_str(), because the string will be destructed
+ * too soon.
  */
 #define TRACE_EVENT(category, str_name) \
     const uint32_t I_PERCETTO_UID(mask) = I_PERCETTO_LOAD_MASK(category); \
@@ -407,6 +437,11 @@ static inline void percetto_cleanup_end(struct percetto_category** category) {
     .name = str_name, .double_value = (value) \
   }
 
+/**
+ * @param str_value Only evaluated when tracing is enabled, but must outlive
+ * its own scope. Ie, do not do this: str::string(compute_string()).c_str(),
+ * because the string will be destructed too soon.
+ */
 #define PERCETTO_STRING(str_name, str_value) { \
     .extended = { .type = PERCETTO_EVENT_EXTENDED_DEBUG_DATA, .next = NULL }, \
     .type = PERCETTO_EVENT_DEBUG_DATA_STRING, \

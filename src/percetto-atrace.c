@@ -31,6 +31,7 @@
 struct atrace_group_tracker {
   uint64_t tags[PERCETTO_MAX_GROUP_CATEGORIES];
   struct percetto_category categories[PERCETTO_MAX_GROUP_CATEGORIES];
+  struct percetto_category_ext category_exts[PERCETTO_MAX_GROUP_CATEGORIES];
   int count;
 };
 
@@ -55,10 +56,10 @@ static struct atrace_group_tracker s_groups;
 static struct atrace_counter_tracker s_tracks;
 
 // This category is never registered so it remains disabled permanently.
-PERCETTO_CATEGORY_DEFINE(never, "");
+struct percetto_category s_category_never = { ATOMIC_VAR_INIT(0), NULL, NULL };
 
 // The order in this array exactly matches the ATRACE_TAG bit shifts:
-#define ATRACE_PERCETTO_CATEGORIES(C) \
+#define ATRACE_PERCETTO_CATEGORIES(C, G) \
   C(always, "ATRACE_TAG_ALWAYS") \
   C(gfx, "Graphics", "slow") \
   C(input, "Input", "slow") \
@@ -88,7 +89,7 @@ PERCETTO_CATEGORY_DEFINE(never, "");
   C(rro, "ATRACE_TAG_RRO", "slow") \
   C(sysprop, "ATRACE_TAG_SYSPROP", "slow")
 
-PERCETTO_CATEGORY_DEFINE_MULTI(ATRACE_PERCETTO_CATEGORIES);
+PERCETTO_CATEGORY_DEFINE(ATRACE_PERCETTO_CATEGORIES);
 
 #define SCOPED_LOCK(mutex) \
    pthread_mutex_lock(&(mutex)); \
@@ -113,22 +114,18 @@ void atrace_init() {
   }
 }
 
-void atrace_create_category(struct percetto_category** result, uint64_t tags) {
-  if (s_percetto_status == PERCETTO_STATUS_NOT_STARTED)
-    atrace_init();
-
-  SCOPED_LOCK(s_lock);
-
+static void atrace_create_category_locked(atomic_uintptr_t* result,
+                                          uint64_t tags) {
   if (s_percetto_status != PERCETTO_STATUS_OK ||
       !(tags & ATRACE_TAG_VALID_MASK)) {
-    *result = PERCETTO_CATEGORY_PTR(never);
+    *result = (uintptr_t)&s_category_never;
     return;
   }
 
   // Check if we already have a matching group category for these tags.
   for (int i = 0; i < s_groups.count; ++i) {
     if (s_groups.tags[i] == tags) {
-      *result = &s_groups.categories[i];
+      *result = (uintptr_t)&s_groups.categories[i];
       return;
     }
   }
@@ -137,43 +134,45 @@ void atrace_create_category(struct percetto_category** result, uint64_t tags) {
   const uint32_t static_count =
       sizeof(g_percetto_categories) / sizeof(g_percetto_categories[0]);
   assert(static_count <= 256);
-  struct percetto_category_group group = { .child_ids = { 0 }, .count = 0 };
+  uint32_t group_size = 0;
+  struct percetto_category* group[PERCETTO_MAX_GROUP_SIZE];
   for (uint32_t i = 0; i < static_count; ++i) {
     if (!!(tags & (1 << i))) {
-      if (group.count == PERCETTO_MAX_GROUP_SIZE) {
+      if (group_size == PERCETTO_MAX_GROUP_SIZE) {
         fprintf(stderr, "%s warning: too many categories in group\n",
                 __func__);
         break;
       }
-      group.child_ids[group.count++] = (uint8_t)i;
+      group[group_size++] = g_percetto_categories[i];
     }
   }
 
-  if (group.count == 0) {
+  if (group_size == 0) {
     // No categories were specified, so these trace events should never
     // trigger.
-    *result = PERCETTO_CATEGORY_PTR(never);
+    *result = (uintptr_t)&s_category_never;
     return;
   }
 
-  if (group.count == 1) {
+  if (group_size == 1) {
     // One category specified so return its pointer.
-    uint32_t index = group.child_ids[0];
-    assert(index < static_count);
-    *result = g_percetto_categories[index];
+    *result = (uintptr_t)group[0];
     return;
   }
 
   if (s_groups.count == PERCETTO_MAX_GROUP_CATEGORIES) {
     fprintf(stderr, "%s error: too many different atrace combinations used\n",
             __func__);
-    *result = PERCETTO_CATEGORY_PTR(never);
+    *result = (uintptr_t)&s_category_never;
     return;
   }
 
   // Allocate and return a group category.
   struct percetto_category* category = &s_groups.categories[s_groups.count];
-  s_groups.categories[s_groups.count] = PERCETTO_GROUP_CATEGORY(group);
+  for (uint32_t i = 0; i < group_size; ++i)
+    s_groups.category_exts[s_groups.count].group[i] = group[i];
+  s_groups.categories[s_groups.count] = (struct percetto_category)
+      { 0, NULL, &s_groups.category_exts[s_groups.count] };
   s_groups.tags[s_groups.count] = tags;
   ++s_groups.count;
 
@@ -181,22 +180,18 @@ void atrace_create_category(struct percetto_category** result, uint64_t tags) {
   // category before it's ready.
   percetto_register_group_category(category);
 
-  *result = category;
+  atomic_store_explicit(result, (uintptr_t)category, memory_order_release);
 }
 
-void atrace_create_counter(struct percetto_track** result, const char* name) {
-  if (s_percetto_status == PERCETTO_STATUS_NOT_STARTED)
-    atrace_init();
-
-  SCOPED_LOCK(s_lock);
-
+static void atrace_create_counter_locked(atomic_uintptr_t* result,
+                                         const char* name) {
   if (s_percetto_status != PERCETTO_STATUS_OK)
     return;
 
   // Check if we already have a matching group category for these tags.
   for (int i = 0; i < s_tracks.count; ++i) {
     if (s_tracks.tracks[i].name == name) {
-      *result = &s_tracks.tracks[i];
+      *result = (uintptr_t)&s_tracks.tracks[i];
       return;
     }
   }
@@ -215,7 +210,32 @@ void atrace_create_counter(struct percetto_track** result, const char* name) {
   // before it's ready.
   percetto_register_track(track);
 
-  *result = track;
+  atomic_store_explicit(result, (uintptr_t)track, memory_order_release);
+}
+
+void atrace_create_category(atomic_uintptr_t* result, uint64_t tags) {
+  if (s_percetto_status == PERCETTO_STATUS_NOT_STARTED)
+    atrace_init();
+
+  SCOPED_LOCK(s_lock);
+
+  atrace_create_category_locked(result, tags);
+}
+
+void atrace_create_category_and_counter(
+    atomic_uintptr_t* out_category,
+    uint64_t category_tags,
+    atomic_uintptr_t* out_track,
+    const char* track_name) {
+  if (s_percetto_status == PERCETTO_STATUS_NOT_STARTED)
+    atrace_init();
+
+  SCOPED_LOCK(s_lock);
+
+  // The macros load category pointer and then counter pointer,
+  // so make sure counter is stored before category.
+  atrace_create_counter_locked(out_track, track_name);
+  atrace_create_category_locked(out_category, category_tags);
 }
 
 void atrace_event(struct percetto_category* category,

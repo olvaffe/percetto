@@ -52,6 +52,10 @@ static Percetto s_percetto;
 static thread_local int s_committed_incremental_update = 0;
 static std::atomic_int s_target_incremental_update(0);
 
+static inline bool IsGroupCategory(const struct percetto_category* category) {
+  return category->name == NULL;
+}
+
 static bool CheckSystemClock(clockid_t system_clock) {
   struct timespec ts = {};
   return (clock_gettime(system_clock, &ts) == 0);
@@ -124,8 +128,10 @@ class PercettoDataSource : public perfetto::DataSource<PercettoDataSource> {
       return;
     for (int i = 0; i < s_percetto.category_count; i++) {
       std::array<const char*, PERCETTO_MAX_CATEGORY_TAGS> tags;
-      std::copy(std::begin(s_percetto.categories[i]->tags),
-                std::end(s_percetto.categories[i]->tags), std::begin(tags));
+      // Tags are all strings except the first which is description:
+      std::copy(std::begin(s_percetto.categories[i]->ext->strings) + 1,
+                std::end(s_percetto.categories[i]->ext->strings),
+                std::begin(tags));
       if (IsCategoryEnabled(s_percetto.categories[i]->name, tags, config)) {
         std::atomic_fetch_or(&s_percetto.categories[i]->sessions,
                              1 << args.internal_instance_index);
@@ -157,10 +163,9 @@ class PercettoDataSource : public perfetto::DataSource<PercettoDataSource> {
       return false;
 
     uint32_t new_sessions = 0;
-    for (uint32_t i = 0; i < group_category->group.count; ++i) {
-      uint8_t cat_index = group_category->group.child_ids[i];
-      assert(cat_index >= 0 && cat_index < s_percetto.category_count);
-      new_sessions |= s_percetto.categories[cat_index]->sessions;
+    for (auto category : group_category->ext->group) {
+      if (category)
+        new_sessions |= category->sessions.load(std::memory_order_acquire);
     }
     group_category->sessions = new_sessions;
     return true;
@@ -186,10 +191,12 @@ class PercettoDataSource : public perfetto::DataSource<PercettoDataSource> {
     for (int i = 0; i < s_percetto.category_count; i++) {
       auto cat = ted->add_available_categories();
       cat->set_name(s_percetto.categories[i]->name);
-      cat->set_description(s_percetto.categories[i]->description);
-      for (const char* tag : s_percetto.categories[i]->tags) {
-        if (tag)
-          cat->add_tags(tag);
+      cat->set_description(s_percetto.categories[i]->ext->strings[0]);
+      // Tags are all strings except the first which is description:
+      for (auto tag = std::begin(s_percetto.categories[i]->ext->strings) + 1;
+           tag != std::end(s_percetto.categories[i]->ext->strings); ++tag) {
+        if (*tag)
+          cat->add_tags(*tag);
       }
     }
     dsd.set_track_event_descriptor_raw(ted.SerializeAsString());
@@ -248,11 +255,9 @@ class PercettoDataSource : public perfetto::DataSource<PercettoDataSource> {
  private:
   static void AddCategoryGroup(
       TrackEvent* event, const struct percetto_category* category) {
-    for (uint32_t i = 0; i < category->group.count; ++i) {
-      uint8_t cat_index = category->group.child_ids[i];
-      assert(cat_index >= 0 && cat_index < s_percetto.category_count);
-      const char* name = s_percetto.categories[cat_index]->name;
-      event->add_categories(name, strlen(name));
+    for (auto category : category->ext->group) {
+      if (category)
+        event->add_categories(category->name, strlen(category->name));
     }
   }
 
@@ -399,10 +404,6 @@ int percetto_init(size_t category_count,
     fprintf(stderr, "%s error: already initialized\n", __func__);
     return -2;
   }
-  if (category_count > PERCETTO_MAX_CATEGORIES) {
-    fprintf(stderr, "%s error: too many categories\n", __func__);
-    return -3;
-  }
 
   clockid_t system_clock = 0;
   BuiltinClock perfetto_clock = perfetto::protos::pbzero::BUILTIN_CLOCK_UNKNOWN;
@@ -416,9 +417,32 @@ int percetto_init(size_t category_count,
     return -4;
   }
 
+  // Find if and when the categories become group categories.
+  size_t i;
+  for (i = 0; i < category_count; ++i) {
+    if (IsGroupCategory(categories[i]))
+      break;
+  }
+  size_t regular_category_count = i;
+  // Add the group categories to the group array.
+  for (; i < category_count; ++i) {
+    size_t group_i = i - regular_category_count;
+    if (group_i >= s_percetto.groups.max_size()) {
+      fprintf(stderr, "%s error: no more group categories are allowed\n",
+              __func__);
+      break;
+    }
+    s_percetto.groups[i - regular_category_count] = categories[i];
+  }
+
+  if (regular_category_count > PERCETTO_MAX_CATEGORIES) {
+    fprintf(stderr, "%s error: too many categories\n", __func__);
+    regular_category_count = PERCETTO_MAX_CATEGORIES;
+  }
+
   s_percetto.is_initialized = 1;
   s_percetto.categories = categories;
-  s_percetto.category_count = category_count;
+  s_percetto.category_count = regular_category_count;
   s_percetto.trace_clock_id = system_clock;
   s_percetto.perfetto_clock = perfetto_clock;
 
@@ -432,6 +456,9 @@ int percetto_init(size_t category_count,
 extern "C"
 int percetto_register_group_category(struct percetto_category* category) {
   // Lock-free add to array.
+  // Fence so that previous writes to *category complete before adding
+  // the category below.
+  std::atomic_thread_fence(std::memory_order_release);
   for (size_t i = 0; i < s_percetto.groups.max_size(); ++i) {
     struct percetto_category* null_category = NULL;
     // Try to swap new category into this slot.
@@ -454,7 +481,7 @@ int percetto_register_track(struct percetto_track* track) {
     struct percetto_track* null_track = NULL;
     // Try to swap new track into this slot.
     if (s_percetto.tracks[i].compare_exchange_strong(null_track, track)) {
-      perfetto::Track perfetto_track(i + 1);
+      perfetto::Track perfetto_track(i + 1); // + 1 to make sure it's non-zero.
       track->uuid.store(perfetto_track.uuid, std::memory_order_relaxed);
       track->parent_uuid.store(perfetto_track.parent_uuid,
                                std::memory_order_relaxed);

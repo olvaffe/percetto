@@ -23,7 +23,7 @@
 
 #include "multi-category.h"
 
-PERCETTO_CATEGORY_DEFINE_MULTI(MY_PERCETTO_CATEGORIES);
+PERCETTO_CATEGORY_DEFINE(MY_PERCETTO_CATEGORIES);
 
 PERCETTO_TRACK_DEFINE(squirrels, PERCETTO_TRACK_COUNTER);
 
@@ -46,7 +46,7 @@ static void test(void) {
   // Counter
   static int count = 1;
   count++;
-  TRACE_COUNTER(dog, squirrels, count);
+  TRACE_COUNTER(dbg_or_dog, squirrels, count);
 
   // Debug annotations
   TRACE_DEBUG_DATA(dog, PERCETTO_BOOL("have_squirrels", count));

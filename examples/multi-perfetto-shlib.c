@@ -17,10 +17,10 @@
 #include "percetto.h"
 #include "multi-perfetto-shlib.h"
 
-#define MY_PERCETTO_CATEGORIES(C) \
+#define MY_PERCETTO_CATEGORIES(C, G) \
   C(shlib, "Shared lib test events")
 
-PERCETTO_CATEGORY_DEFINE_MULTI(MY_PERCETTO_CATEGORIES);
+PERCETTO_CATEGORY_DEFINE(MY_PERCETTO_CATEGORIES);
 
 int test_shlib_init(void) {
   return PERCETTO_INIT(PERCETTO_CLOCK_DONT_CARE);
