@@ -30,10 +30,8 @@ using std::atomic_load_explicit;
 using std::memory_order_relaxed;
 using std::memory_order_acquire;
 using std::size_t;
-#define I_PERCETTO_ATOMIC_INIT(n) {ATOMIC_VAR_INIT(n)}
 #else
 #include <stdatomic.h>
-#define I_PERCETTO_ATOMIC_INIT(n) ATOMIC_VAR_INIT(n)
 #endif
 
 #ifdef __cplusplus
@@ -85,7 +83,7 @@ extern "C" {
  */
 #define PERCETTO_TRACK_DEFINE(track, track_type) \
     struct percetto_track g_percetto_track_##track = \
-        { I_PERCETTO_ATOMIC_INIT(0), I_PERCETTO_ATOMIC_INIT(0), \
+        { ATOMIC_VAR_INIT(0), ATOMIC_VAR_INIT(0), \
         #track, (int32_t)track_type, 0, NULL }
 
 /**
@@ -146,7 +144,7 @@ extern "C" {
 
 #define I_PERCETTO_GROUP_CATEGORY_DEFINE(category, ...) \
     struct percetto_category g_percetto_category_##category = \
-        { I_PERCETTO_ATOMIC_INIT(0), NULL, \
+        { ATOMIC_VAR_INIT(0), NULL, \
           &g_percetto_category_ext_##category };
 
 #define I_PERCETTO_CATEGORY_DECLARE(category) \
@@ -154,7 +152,7 @@ extern "C" {
 
 #define I_PERCETTO_CATEGORY_DEFINE(category, ...) \
     struct percetto_category g_percetto_category_##category = \
-        { I_PERCETTO_ATOMIC_INIT(0), #category, \
+        { ATOMIC_VAR_INIT(0), #category, \
           &g_percetto_category_ext_##category }
 
 #define I_PERCETTO_CATEGORY_EXT_DEFINE_SEMICOLON(category, ...) \
