@@ -44,6 +44,12 @@ struct Percetto {
   BuiltinClock perfetto_clock;
 };
 
+// Thread tracks use kernel tid (pid_t) for their track ID, so to make sure
+// that custom tracks have unique IDs we need to offset by maximum thread ID
+// value. Unfortunately there does not seem to be a portable way to get that
+// constant, so we will use a large value.
+constexpr uint64_t kCustomTrackIdOffset = 1ull << 32;
+
 static Percetto s_percetto;
 
 // Tracks the last incremental update performed by each thread.
@@ -364,29 +370,26 @@ class PercettoDataSource : public perfetto::DataSource<PercettoDataSource> {
       default_track.Serialize(packet->set_track_descriptor());
     }
 
-    {
-      // Add custom tracks (ie: for counters)
-      for (size_t i = 0; i < s_percetto.tracks.max_size(); ++i) {
-        struct percetto_track* track =
-            s_percetto.tracks[i].load(std::memory_order_relaxed);
-        // The first NULL slot signifies the end of the array. It's ok to race
-        // with the adding of tracks.
-        if (!track)
-          break;
+    // Add custom tracks (ie: for counters)
+    for (size_t i = 0; i < s_percetto.tracks.max_size(); ++i) {
+      struct percetto_track* track =
+          s_percetto.tracks[i].load(std::memory_order_relaxed);
+      // The first NULL slot signifies the end of the array. It's ok to race
+      // with the adding of tracks.
+      if (!track)
+        break;
 
-        auto packet =
-            NewTracePacket(ctx, TracePacket::SEQ_NEEDS_INCREMENTAL_STATE);
-        auto track_descriptor = packet->set_track_descriptor();
-        track_descriptor->set_uuid(
-            track->uuid.load(std::memory_order_relaxed));
-        track_descriptor->set_parent_uuid(
-            track->parent_uuid.load(std::memory_order_relaxed));
-        track_descriptor->set_name(track->name);
-        if (static_cast<percetto_track_type>(track->type) ==
-            PERCETTO_TRACK_COUNTER)
-          track_descriptor->set_counter();
-      }
-
+      auto packet =
+          NewTracePacket(ctx, TracePacket::SEQ_NEEDS_INCREMENTAL_STATE);
+      auto track_descriptor = packet->set_track_descriptor();
+      track_descriptor->set_uuid(
+          track->uuid.load(std::memory_order_relaxed));
+      track_descriptor->set_parent_uuid(
+          track->parent_uuid.load(std::memory_order_relaxed));
+      track_descriptor->set_name(track->name);
+      if (static_cast<percetto_track_type>(track->type) ==
+          PERCETTO_TRACK_COUNTER)
+        track_descriptor->set_counter();
     }
   }
 };
@@ -481,7 +484,7 @@ int percetto_register_track(struct percetto_track* track) {
     struct percetto_track* null_track = NULL;
     // Try to swap new track into this slot.
     if (s_percetto.tracks[i].compare_exchange_strong(null_track, track)) {
-      perfetto::Track perfetto_track(i + 1); // + 1 to make sure it's non-zero.
+      perfetto::Track perfetto_track(kCustomTrackIdOffset + i);
       track->uuid.store(perfetto_track.uuid, std::memory_order_relaxed);
       track->parent_uuid.store(perfetto_track.parent_uuid,
                                std::memory_order_relaxed);
