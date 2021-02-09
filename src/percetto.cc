@@ -16,8 +16,12 @@
 
 #include "percetto.h"
 
+#include <pthread.h>
+#include <unistd.h>
+
 #include <array>
 #include <atomic>
+#include <functional>
 #include <perfetto.h>
 
 #include "perfetto-port.h"
@@ -42,6 +46,8 @@ struct Percetto {
   std::array<std::atomic<struct percetto_track*>, PERCETTO_MAX_TRACKS> tracks;
   clockid_t trace_clock_id;
   BuiltinClock perfetto_clock;
+  perfetto::base::PlatformProcessId process_pid;
+  uint64_t process_uuid;
 };
 
 // Thread tracks use kernel tid (pid_t) for their track ID, so to make sure
@@ -60,6 +66,62 @@ static std::atomic_int s_target_incremental_update(0);
 
 static inline bool IsGroupCategory(const struct percetto_category* category) {
   return category->name == NULL;
+}
+
+static uint64_t GetProcessUuid() {
+  char buffer[64];
+  char path[64];
+  int32_t pid = static_cast<int32_t>(s_percetto.process_pid);
+  snprintf(path, sizeof(path), "/proc/%d/ns/pid", pid);
+
+  ssize_t result = readlink(path, buffer, sizeof(buffer));
+  if (result < 0) {
+    fprintf(stderr, "error %s: readlink error: %d\n", __func__, errno);
+    return pid;
+  }
+
+  if (result < static_cast<ssize_t>(sizeof(buffer))) {
+    buffer[result] = '\0';
+  } else {
+    fprintf(stderr, "warning %s: readlink truncation\n", __func__);
+    buffer[sizeof(buffer) - 1] = '\0';
+  }
+
+  // Hash the namespace inode number and xor with PID to create a system-wide
+  // unique process ID.
+  std::hash<char*> hash;
+  return hash(buffer) ^ s_percetto.process_pid;
+}
+
+static const char* TryGetProcessExeName(char* buffer, size_t buffer_size) {
+  char path[64];
+  int32_t pid = static_cast<int32_t>(s_percetto.process_pid);
+  snprintf(path, sizeof(path), "/proc/%d/exe", pid);
+
+  ssize_t result = readlink(path, buffer, buffer_size);
+  if (result < 0) {
+    return NULL;
+  }
+
+  if (result < static_cast<ssize_t>(buffer_size)) {
+    buffer[result] = '\0';
+  } else {
+    buffer[buffer_size - 1] = '\0';
+  }
+
+  return buffer;
+}
+
+static const char* TryGetThreadName(char* buffer, size_t buffer_size) {
+  pthread_t thread = pthread_self();
+  int result = pthread_getname_np(thread, buffer, buffer_size);
+  if (result != 0)
+    return NULL;
+  return buffer;
+}
+
+static uint64_t GetTrackUuid(uint64_t trackid) {
+  return trackid ^ s_percetto.process_uuid;
 }
 
 static bool CheckSystemClock(clockid_t system_clock) {
@@ -343,7 +405,8 @@ class PercettoDataSource : public perfetto::DataSource<PercettoDataSource> {
 
   static void OncePerTraceSession(Base::TraceContext& ctx) {
     SetDoingIncrementalUpdate();
-    auto default_track = perfetto::ThreadTrack::Current();
+    auto tid = perfetto::base::GetThreadId();
+    uint64_t thread_track_uuid = GetTrackUuid(static_cast<uint64_t>(tid));
 
     {
       auto packet =
@@ -352,22 +415,41 @@ class PercettoDataSource : public perfetto::DataSource<PercettoDataSource> {
       defaults->set_timestamp_clock_id(s_percetto.perfetto_clock);
 
       auto track_defaults = defaults->set_track_event_defaults();
-      track_defaults->set_track_uuid(default_track.uuid);
+      track_defaults->set_track_uuid(thread_track_uuid);
     }
 
     // Add process track (happens for every thread, but that's ok).
     {
-      auto process_track = perfetto::ProcessTrack::Current();
       auto packet =
           NewTracePacket(ctx, TracePacket::SEQ_NEEDS_INCREMENTAL_STATE);
-      process_track.Serialize(packet->set_track_descriptor());
+
+      auto track_descriptor = packet->set_track_descriptor();
+      track_descriptor->set_uuid(s_percetto.process_uuid);
+
+      auto process = track_descriptor->set_process();
+      process->set_pid(static_cast<int32_t>(s_percetto.process_pid));
+      char buffer[128];
+      const char* name = TryGetProcessExeName(buffer, sizeof(buffer));
+      if (name)
+        process->set_process_name(name, strlen(name));
     }
 
     // Add thread track.
     {
       auto packet =
           NewTracePacket(ctx, TracePacket::SEQ_NEEDS_INCREMENTAL_STATE);
-      default_track.Serialize(packet->set_track_descriptor());
+
+      auto track_descriptor = packet->set_track_descriptor();
+      track_descriptor->set_uuid(thread_track_uuid);
+      track_descriptor->set_parent_uuid(s_percetto.process_uuid);
+
+      auto thread_descriptor = track_descriptor->set_thread();
+      thread_descriptor->set_pid(static_cast<int32_t>(s_percetto.process_pid));
+      thread_descriptor->set_tid(static_cast<int32_t>(tid));
+      char buffer[128];
+      const char* name = TryGetThreadName(buffer, sizeof(buffer));
+      if (name)
+        thread_descriptor->set_thread_name(name, strlen(name));
     }
 
     // Add custom tracks (ie: for counters)
@@ -448,6 +530,11 @@ int percetto_init(size_t category_count,
   s_percetto.category_count = regular_category_count;
   s_percetto.trace_clock_id = system_clock;
   s_percetto.perfetto_clock = perfetto_clock;
+  s_percetto.process_pid = perfetto::base::GetProcessId();
+
+  // Determine system-wide UUID process, as PID is only unique within a
+  // namespace.
+  s_percetto.process_uuid = GetProcessUuid();
 
   perfetto::TracingInitArgs args;
   args.backends = perfetto::kSystemBackend;
@@ -484,9 +571,9 @@ int percetto_register_track(struct percetto_track* track) {
     struct percetto_track* null_track = NULL;
     // Try to swap new track into this slot.
     if (s_percetto.tracks[i].compare_exchange_strong(null_track, track)) {
-      perfetto::Track perfetto_track(kCustomTrackIdOffset + i);
-      track->uuid.store(perfetto_track.uuid, std::memory_order_relaxed);
-      track->parent_uuid.store(perfetto_track.parent_uuid,
+      uint64_t track_uuid = GetTrackUuid(kCustomTrackIdOffset + i);
+      track->uuid.store(track_uuid, std::memory_order_relaxed);
+      track->parent_uuid.store(s_percetto.process_uuid,
                                std::memory_order_relaxed);
       std::atomic_thread_fence(std::memory_order_release);
       // Update incremental state to send info about this track.
