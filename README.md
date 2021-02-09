@@ -1,20 +1,18 @@
 # Percetto
 
 Percetto is a minimal C wrapper for Perfetto SDK to enable app-specific
-tracing.  Internally, there is a minimal implementation of `TrackEvent` data
+tracing. Internally, there is a minimal implementation of `TrackEvent` data
 source.
 
 ## Current Limitations
 
-Currently, Percetto works best when statically linked once for a whole process.
+Percetto works best when statically linked once for a whole process.
 When linked into a shared library, Percetto symbols should not be exported,
-because percetto_init can not yet be called multiple times with different
-category data.
+because percetto_init can not yet be called multiple times.
 
-If there are multiple instances of Percetto in a single process, the Perfetto
-UI will show those as separate processes with the same PID -- they are not
-merged, so even a call on the same thread will appear to be a separate track
-with the same thread ID.
+If there are multiple instances of Percetto in a single process, the main
+disadvantages are the additional binary size overhead and additional background
+thread for Perfetto. The binary size is typically about 450KB.
 
 ## Directory Structure
 
