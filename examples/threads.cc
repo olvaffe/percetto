@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+#include <pthread.h>
 #include <stdio.h>
 #include <unistd.h>
 
@@ -29,7 +30,9 @@ PERCETTO_CATEGORY_DEFINE(MY_PERCETTO_CATEGORIES);
 
 PERCETTO_TRACK_DEFINE(mycount, PERCETTO_TRACK_COUNTER);
 
-static void test() {
+static void test(const char* name) {
+  pthread_setname_np(pthread_self(), name);
+
   for (;;) {
     TRACE_EVENT(test, __func__);
 
@@ -54,15 +57,15 @@ int main(void) {
     return -1;
   }
 
-  constexpr int num_threads = 5;
-
   std::vector<std::thread> threads;
-  for (int i = 0; i < num_threads; ++i) {
-    threads.emplace_back(std::thread(test));
-  }
+  threads.emplace_back(std::thread(test, "one"));
+  threads.emplace_back(std::thread(test, "two"));
+  threads.emplace_back(std::thread(test, "three"));
+  threads.emplace_back(std::thread(test, "four"));
+  threads.emplace_back(std::thread(test, "five"));
 
   // runs continuously
-  for (int i = 0; i < num_threads; ++i) {
+  for (size_t i = 0; i < threads.size(); ++i) {
     threads[i].join();
   }
 
