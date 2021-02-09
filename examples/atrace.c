@@ -14,7 +14,9 @@
  * limitations under the License.
  */
 
+#ifndef _GNU_SOURCE
 #define _GNU_SOURCE  // for nanosleep
+#endif
 
 #include <stdio.h>
 #include <unistd.h>
