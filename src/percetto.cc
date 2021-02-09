@@ -25,7 +25,6 @@
 
 #include <array>
 #include <atomic>
-#include <functional>
 #include <perfetto.h>
 
 #include "perfetto-port.h"
@@ -81,20 +80,20 @@ static uint64_t GetProcessUuid() {
   ssize_t result = readlink(path, buffer, sizeof(buffer));
   if (result < 0) {
     fprintf(stderr, "error %s: readlink error: %d\n", __func__, errno);
-    return pid;
+    return static_cast<uint64_t>(pid);
   }
 
-  if (result < static_cast<ssize_t>(sizeof(buffer))) {
-    buffer[result] = '\0';
-  } else {
+  if (result >= static_cast<ssize_t>(sizeof(buffer))) {
     fprintf(stderr, "warning %s: readlink truncation\n", __func__);
-    buffer[sizeof(buffer) - 1] = '\0';
+    return static_cast<uint64_t>(pid);
   }
 
-  // Hash the namespace inode number and xor with PID to create a system-wide
-  // unique process ID.
-  std::hash<char*> hash;
-  return hash(buffer) ^ s_percetto.process_pid;
+  // Parse the number from, eg: "pid:[4026534515]"
+  // Replace last ']' with \0.
+  buffer[result - 1] = '\0';
+  const char* ns_begin = buffer;
+  long ns = strtol(ns_begin + 5, NULL, 10);
+  return (ns << 16) ^ pid;
 }
 
 static const char* TryGetProcessExeName(char* buffer, size_t buffer_size) {
