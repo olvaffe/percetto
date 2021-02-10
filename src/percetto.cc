@@ -88,6 +88,8 @@ static uint64_t GetProcessUuid() {
     return static_cast<uint64_t>(pid);
   }
 
+  // TODO(jbates): use a proper hash like FNV to combine this string with the
+  // pid.
   // Parse the number from, eg: "pid:[4026534515]"
   // Replace last ']' with \0.
   buffer[result - 1] = '\0';
