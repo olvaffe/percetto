@@ -56,7 +56,8 @@ static struct atrace_group_tracker s_groups;
 static struct atrace_counter_tracker s_tracks;
 
 // This category is never registered so it remains disabled permanently.
-struct percetto_category s_category_never = { ATOMIC_VAR_INIT(0), NULL, NULL };
+struct percetto_category s_category_never =
+    { ATOMIC_VAR_INIT(0), 0, NULL };
 
 // The order in this array exactly matches the ATRACE_TAG bit shifts:
 #define ATRACE_PERCETTO_CATEGORIES(C, G) \
@@ -172,7 +173,7 @@ static void atrace_create_category_locked(atomic_uintptr_t* result,
   for (uint32_t i = 0; i < group_size; ++i)
     s_groups.category_exts[s_groups.count].group[i] = group[i];
   s_groups.categories[s_groups.count] = (struct percetto_category)
-      { 0, NULL, &s_groups.category_exts[s_groups.count] };
+      { 0, 0, &s_groups.category_exts[s_groups.count] };
   s_groups.tags[s_groups.count] = tags;
   ++s_groups.count;
 

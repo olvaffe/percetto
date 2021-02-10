@@ -68,7 +68,7 @@ static thread_local int s_committed_incremental_update = 0;
 static std::atomic_int s_target_incremental_update(0);
 
 static inline bool IsGroupCategory(const struct percetto_category* category) {
-  return category->name == NULL;
+  return category->ext->name == NULL;
 }
 
 static uint64_t GetProcessUuid() {
@@ -93,7 +93,8 @@ static uint64_t GetProcessUuid() {
   buffer[result - 1] = '\0';
   const char* ns_begin = buffer;
   long ns = strtol(ns_begin + 5, NULL, 10);
-  return (ns << 16) ^ pid;
+  // Mix in pid with a prime to avoid collisions when uuid is mixed with tid.
+  return (ns << 16) ^ (pid * 31177);
 }
 
 static const char* TryGetProcessExeName(char* buffer, size_t buffer_size) {
@@ -203,7 +204,7 @@ class PercettoDataSource : public perfetto::DataSource<PercettoDataSource> {
       std::copy(std::begin(s_percetto.categories[i]->ext->strings) + 1,
                 std::end(s_percetto.categories[i]->ext->strings),
                 std::begin(tags));
-      if (IsCategoryEnabled(s_percetto.categories[i]->name, tags, config)) {
+      if (IsCategoryEnabled(s_percetto.categories[i]->ext->name, tags, config)) {
         std::atomic_fetch_or(&s_percetto.categories[i]->sessions,
                              1 << args.internal_instance_index);
       }
@@ -261,7 +262,7 @@ class PercettoDataSource : public perfetto::DataSource<PercettoDataSource> {
     protozero::HeapBuffered<TrackEventDescriptor> ted;
     for (int i = 0; i < s_percetto.category_count; i++) {
       auto cat = ted->add_available_categories();
-      cat->set_name(s_percetto.categories[i]->name);
+      cat->set_name(s_percetto.categories[i]->ext->name);
       cat->set_description(s_percetto.categories[i]->ext->strings[0]);
       // Tags are all strings except the first which is description:
       for (auto tag = std::begin(s_percetto.categories[i]->ext->strings) + 1;
@@ -290,7 +291,6 @@ class PercettoDataSource : public perfetto::DataSource<PercettoDataSource> {
       if (PERCETTO_UNLIKELY(do_once))
         OncePerTraceSession(ctx);
 
-      /* TODO incremental state */
       auto packet = NewTracePacket(ctx,
           TracePacket::SEQ_NEEDS_INCREMENTAL_STATE, timestamp);
 
@@ -300,10 +300,8 @@ class PercettoDataSource : public perfetto::DataSource<PercettoDataSource> {
       if (PERCETTO_UNLIKELY(track))
         event->set_track_uuid(track->uuid.load(std::memory_order_relaxed));
 
-      /* TODO intern strings with EventCategory */
-
-      if (PERCETTO_LIKELY(category->name)) {
-        event->add_categories(category->name, strlen(category->name));
+      if (PERCETTO_LIKELY(category->name_iid)) {
+        event->add_category_iids(category->name_iid);
       } else {
         AddCategoryGroup(event, category);
       }
@@ -328,7 +326,7 @@ class PercettoDataSource : public perfetto::DataSource<PercettoDataSource> {
       TrackEvent* event, const struct percetto_category* category) {
     for (auto category : category->ext->group) {
       if (category)
-        event->add_categories(category->name, strlen(category->name));
+        event->add_category_iids(category->name_iid);
     }
   }
 
@@ -419,6 +417,13 @@ class PercettoDataSource : public perfetto::DataSource<PercettoDataSource> {
 
       auto track_defaults = defaults->set_track_event_defaults();
       track_defaults->set_track_uuid(thread_track_uuid);
+
+      auto interned = packet->set_interned_data();
+      for (int i = 0; i < s_percetto.category_count; i++) {
+        auto cat = interned->add_event_categories();
+        cat->set_name(s_percetto.categories[i]->ext->name);
+        cat->set_iid(s_percetto.categories[i]->name_iid);
+      }
     }
 
     // Add process track (happens for every thread, but that's ok).
@@ -510,6 +515,7 @@ int percetto_init(size_t category_count,
   for (i = 0; i < category_count; ++i) {
     if (IsGroupCategory(categories[i]))
       break;
+    categories[i]->name_iid = static_cast<uint64_t>(i + 1);
   }
   size_t regular_category_count = i;
   // Add the group categories to the group array.

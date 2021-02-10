@@ -139,12 +139,12 @@ extern "C" {
 
 #define I_PERCETTO_GROUP_CATEGORY_EXT_DEFINE(category, ...) \
     struct percetto_category_ext g_percetto_category_ext_##category = \
-        { { NULL }, { I_PERCETTO_CONCAT2(I_PERCETTO_LIST_CAT_PTRS, \
+        { NULL, { NULL }, { I_PERCETTO_CONCAT2(I_PERCETTO_LIST_CAT_PTRS, \
           I_PERCETTO_COUNT_ARGS(__VA_ARGS__))(__VA_ARGS__) }, NULL };
 
 #define I_PERCETTO_GROUP_CATEGORY_DEFINE(category, ...) \
     struct percetto_category g_percetto_category_##category = \
-        { ATOMIC_VAR_INIT(0), NULL, \
+        { ATOMIC_VAR_INIT(0), 0, \
           &g_percetto_category_ext_##category };
 
 #define I_PERCETTO_CATEGORY_DECLARE(category) \
@@ -152,12 +152,12 @@ extern "C" {
 
 #define I_PERCETTO_CATEGORY_DEFINE(category, ...) \
     struct percetto_category g_percetto_category_##category = \
-        { ATOMIC_VAR_INIT(0), #category, \
+        { ATOMIC_VAR_INIT(0), 0, \
           &g_percetto_category_ext_##category }
 
 #define I_PERCETTO_CATEGORY_EXT_DEFINE_SEMICOLON(category, ...) \
     struct percetto_category_ext g_percetto_category_ext_##category = \
-        { {__VA_ARGS__}, { NULL }, NULL };
+        { #category, {__VA_ARGS__}, { NULL }, NULL };
 
 #define I_PERCETTO_TRACK_PTR(track) (&g_percetto_track_##track)
 
@@ -229,12 +229,14 @@ enum percetto_track_type {
 
 struct percetto_category {
   atomic_uint_fast32_t sessions;
-  /* Category name or null for group categories. */
-  const char* name;
+  /* Category name id or 0 for group categories. */
+  uint64_t name_iid;
   struct percetto_category_ext* ext;
 };
 
 struct percetto_category_ext {
+  /* Category name or null for group categories. */
+  const char* name;
   /* First string is description, followed by tags. */
   const char* strings[PERCETTO_MAX_CATEGORY_TAGS + 1];
   /* Only used for group categories. Two or more can be non-null for groups. */
