@@ -21,6 +21,8 @@
 #include "percetto.h"
 
 #include <pthread.h>
+#include <sys/stat.h>
+#include <sys/types.h>
 #include <unistd.h>
 
 #include <array>
@@ -71,32 +73,42 @@ static inline bool IsGroupCategory(const struct percetto_category* category) {
   return category->ext->name == NULL;
 }
 
+static inline uint64_t FnvHashBegin() {
+  return 14695981039346656037ull;
+}
+
+static uint64_t FnvHashAdd(uint64_t hash, const void* data, size_t data_len) {
+  const uint8_t* bytes = reinterpret_cast<const uint8_t*>(data);
+  const uint8_t* bytes_end = bytes + data_len;
+  for (; bytes != bytes_end; ++bytes) {
+    hash *= 1099511628211ull;
+    hash ^= *bytes;
+  }
+  return hash;
+}
+
+template<typename T> void FnvHashAdd(uint64_t* hash, const T* data) {
+  *hash = FnvHashAdd(*hash, static_cast<const void*>(data), sizeof(T));
+}
+
 static uint64_t GetProcessUuid() {
-  char buffer[64];
+  // The process UUID is a hash of the namespace ID and PID.
   char path[64];
   int32_t pid = static_cast<int32_t>(s_percetto.process_pid);
   snprintf(path, sizeof(path), "/proc/%d/ns/pid", pid);
 
-  ssize_t result = readlink(path, buffer, sizeof(buffer));
-  if (result < 0) {
-    fprintf(stderr, "error %s: readlink error: %d\n", __func__, errno);
-    return static_cast<uint64_t>(pid);
+  uint64_t uuid = FnvHashBegin();
+  FnvHashAdd(&uuid, &s_percetto.process_pid);
+
+  struct stat statbuf;
+  int result = stat(path, &statbuf);
+  if (result == 0) {
+    FnvHashAdd(&uuid, &statbuf.st_ino);
+  } else {
+    fprintf(stderr, "%s: stat error: %d\n", __func__, errno);
   }
 
-  if (result >= static_cast<ssize_t>(sizeof(buffer))) {
-    fprintf(stderr, "warning %s: readlink truncation\n", __func__);
-    return static_cast<uint64_t>(pid);
-  }
-
-  // TODO(jbates): use a proper hash like FNV to combine this string with the
-  // pid.
-  // Parse the number from, eg: "pid:[4026534515]"
-  // Replace last ']' with \0.
-  buffer[result - 1] = '\0';
-  const char* ns_begin = buffer;
-  long ns = strtol(ns_begin + 5, NULL, 10);
-  // Mix in pid with a prime to avoid collisions when uuid is mixed with tid.
-  return (ns << 16) ^ (pid * 31177);
+  return uuid;
 }
 
 static const char* TryGetProcessExeName(char* buffer, size_t buffer_size) {
