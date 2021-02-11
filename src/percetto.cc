@@ -208,7 +208,7 @@ class PercettoDataSource : public perfetto::DataSource<PercettoDataSource> {
                 std::begin(tags));
       if (IsCategoryEnabled(s_percetto.categories[i]->ext->name, tags, config)) {
         std::atomic_fetch_or(&s_percetto.categories[i]->sessions,
-                             1 << args.internal_instance_index);
+                             1ul << args.internal_instance_index);
       }
     }
     UpdateGroupCategories();
@@ -220,7 +220,7 @@ class PercettoDataSource : public perfetto::DataSource<PercettoDataSource> {
   void OnStop(const DataSourceBase::StopArgs& args) override {
     for (int i = 0; i < s_percetto.category_count; i++) {
       std::atomic_fetch_and(&s_percetto.categories[i]->sessions,
-          ~(1 << args.internal_instance_index));
+          ~(1ul << args.internal_instance_index));
     }
     UpdateGroupCategories();
   }
