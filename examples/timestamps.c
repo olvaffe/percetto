@@ -32,6 +32,7 @@
 PERCETTO_CATEGORY_DEFINE(MY_PERCETTO_CATEGORIES);
 
 PERCETTO_TRACK_DEFINE(gpu, PERCETTO_TRACK_EVENTS);
+PERCETTO_TRACK_DEFINE(gpu_freq, PERCETTO_TRACK_COUNTER);
 
 static int trace_init(void) {
   int ret;
@@ -40,6 +41,7 @@ static int trace_init(void) {
   ret = PERCETTO_INIT(PERCETTO_CLOCK_BOOTTIME);
   if (ret != 0)
     return ret;
+  PERCETTO_REGISTER_TRACK(gpu_freq);
   return PERCETTO_REGISTER_TRACK(gpu);
 }
 
@@ -52,12 +54,22 @@ static void test(void) {
     // Move timestamp back by 16 ms to when the fake GPU events began.
     ns -= 16 * 1000000;
 
-    TRACE_EVENT_BEGIN_ON_TRACK(gfx, gpu, ns, "GPU"); ns += 1000;
-      TRACE_EVENT_BEGIN_ON_TRACK(gfx, gpu, ns, "draw1"); ns += 1000000;
-      TRACE_EVENT_END_ON_TRACK(gfx, gpu, ns); ns += 2000;
-      TRACE_EVENT_BEGIN_ON_TRACK(gfx, gpu, ns, "draw2"); ns += 2000000;
-      TRACE_EVENT_END_ON_TRACK(gfx, gpu, ns); ns += 1000;
-    TRACE_EVENT_END_ON_TRACK(gfx, gpu, ns); ns += 1000;
+    TRACE_COUNTER_TS(gfx, gpu_freq, ns, 300);
+    TRACE_EVENT_BEGIN_ON_TRACK(gfx, gpu, ns, "GPU");
+      ns += 1000;
+      TRACE_COUNTER_TS(gfx, gpu_freq, ns, 900);
+      TRACE_EVENT_BEGIN_ON_TRACK(gfx, gpu, ns, "draw1");
+      ns += 1000000;
+      TRACE_EVENT_END_ON_TRACK(gfx, gpu, ns);
+      ns += 2000;
+      TRACE_COUNTER_TS(gfx, gpu_freq, ns, 1100);
+      TRACE_EVENT_BEGIN_ON_TRACK(gfx, gpu, ns, "draw2");
+      ns += 2000000;
+      TRACE_EVENT_END_ON_TRACK(gfx, gpu, ns);
+      ns += 1000;
+    TRACE_EVENT_END_ON_TRACK(gfx, gpu, ns);
+    ns += 1000;
+    TRACE_COUNTER_TS(gfx, gpu_freq, ns, 300);
   }
 }
 

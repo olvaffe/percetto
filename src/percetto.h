@@ -407,6 +407,10 @@ static inline void percetto_cleanup_end(struct percetto_category** category) {
     TRACE_ANY_WITH_ARGS(PERCETTO_EVENT_COUNTER, category, \
         &g_percetto_track_##track, 0, NULL, i64_value)
 
+#define TRACE_COUNTER_TS(category, track, timestamp, i64_value) \
+    TRACE_ANY_WITH_ARGS(PERCETTO_EVENT_COUNTER, category, \
+        &g_percetto_track_##track, timestamp, NULL, i64_value)
+
 #define TRACE_FLOW(category, str_name, i64_cookie) \
     TRACE_ANY_WITH_ARGS(PERCETTO_EVENT_INSTANT, category, \
         NULL, 0, str_name, i64_cookie)
