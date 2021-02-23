@@ -561,6 +561,7 @@ int percetto_init(size_t category_count,
 
   perfetto::TracingInitArgs args;
   args.backends = perfetto::kSystemBackend;
+  args.shmem_size_hint_kb = 32 * 1024;
   perfetto::Tracing::Initialize(args);
 
   return PercettoDataSource::Register() ? 0 : -1;
