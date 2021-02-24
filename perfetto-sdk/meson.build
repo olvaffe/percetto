@@ -50,7 +50,7 @@ perfetto_sdk_lib = static_library(
   'perfetto-sdk',
   perfetto_sdk_gen,
   dependencies: threads_dep,
-  cpp_args : ['-fdata-sections', '-ffunction-sections', '-Os'],
+  cpp_args : ['-fdata-sections', '-ffunction-sections', '-Os', '-fvisibility=hidden'],
 )
 
 perfetto_sdk_dep = declare_dependency(
