@@ -20,6 +20,7 @@
 
 #include "percetto.h"
 
+#include <limits.h>
 #include <pthread.h>
 #include <sys/stat.h>
 #include <sys/types.h>
@@ -27,6 +28,7 @@
 
 #include <array>
 #include <atomic>
+#include <cstdlib>
 #include <perfetto.h>
 
 #include "perfetto-port.h"
@@ -189,6 +191,16 @@ static inline uint64_t GetTimestampNs() {
   struct timespec ts = {};
   clock_gettime(s_percetto.trace_clock_id, &ts);
   return static_cast<uint64_t>(ts.tv_sec * 1000000000LL + ts.tv_nsec);
+}
+
+static uint32_t GetEnvU32(const char* var_name, uint32_t default_value) {
+  const char* var = std::getenv(var_name);
+  if (var) {
+    long long value = std::atoll(var);
+    if (value >= 0 && value <= UINT_MAX)
+      return static_cast<uint32_t>(value);
+  }
+  return default_value;
 }
 
 class PercettoDataSource : public perfetto::DataSource<PercettoDataSource> {
@@ -568,12 +580,16 @@ int percetto_init_with_args(size_t category_count,
   // namespace.
   s_percetto.process_uuid = GetProcessUuid();
 
-  perfetto::TracingInitArgs pargs;
-  pargs.backends = perfetto::kSystemBackend;
-  pargs.shmem_size_hint_kb = args->shmem_size_hint_kb;
-  pargs.shmem_page_size_hint_kb = args->shmem_page_size_hint_kb;
-  pargs.shmem_batch_commits_duration_ms = args->shmem_batch_commits_duration_ms;
-  perfetto::Tracing::Initialize(pargs);
+  perfetto::TracingInitArgs init_args;
+  init_args.backends = perfetto::kSystemBackend;
+  init_args.shmem_size_hint_kb = GetEnvU32(
+      "PERCETTO_SHMEM_SIZE_HINT_KB", args->shmem_size_hint_kb);
+  init_args.shmem_page_size_hint_kb = GetEnvU32(
+      "PERCETTO_SHMEM_PAGE_SIZE_HINT_KB", args->shmem_page_size_hint_kb);
+  init_args.shmem_batch_commits_duration_ms = GetEnvU32(
+      "PERCETTO_SHMEM_BATCH_COMMITS_DURATION_MS",
+      args->shmem_batch_commits_duration_ms);
+  perfetto::Tracing::Initialize(init_args);
 
   return PercettoDataSource::Register() ? 0 : -1;
 }

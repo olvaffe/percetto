@@ -252,7 +252,15 @@ enum percetto_track_type {
   PERCETTO_TRACK_COUNTER,
 };
 
-/* See perfetto::TracingInitArgs. */
+/**
+ * See perfetto::TracingInitArgs for details.
+ * The environment can also be used to override the settings provided through
+ * PERCETTO_INIT_WITH_ARGS or the PERCETTO_INIT defaults. The environment
+ * variables are:
+ *   PERCETTO_SHMEM_SIZE_HINT_KB
+ *   PERCETTO_SHMEM_PAGE_SIZE_HINT_KB
+ *   PERCETTO_SHMEM_BATCH_COMMITS_DURATION_MS
+ */
 struct percetto_init_args {
   uint32_t shmem_size_hint_kb;
   uint32_t shmem_page_size_hint_kb;
