@@ -48,7 +48,10 @@ static void test(const char* name) {
 }
 
 int main(void) {
-  int ret = PERCETTO_INIT(PERCETTO_CLOCK_DONT_CARE);
+  struct percetto_init_args args = PERCETTO_INIT_ARGS_DEFAULTS();
+  args.shmem_size_hint_kb = 300;
+
+  int ret = PERCETTO_INIT_WITH_ARGS(PERCETTO_CLOCK_DONT_CARE, &args);
   if (ret != 0) {
     fprintf(stderr, "warning: failed to init tracing: %d\n", ret);
     // Note that tracing macros are safe regardless of percetto_init result.

@@ -507,6 +507,15 @@ extern "C"
 int percetto_init(size_t category_count,
                   struct percetto_category** categories,
                   enum percetto_clock clock_id) {
+  struct percetto_init_args args = PERCETTO_INIT_ARGS_DEFAULTS();
+  return percetto_init_with_args(category_count, categories, clock_id, &args);
+}
+
+extern "C"
+int percetto_init_with_args(size_t category_count,
+                            struct percetto_category** categories,
+                            enum percetto_clock clock_id,
+                            const struct percetto_init_args* args) {
   if (s_percetto.is_initialized) {
     fprintf(stderr, "%s error: already initialized\n", __func__);
     return -2;
@@ -559,10 +568,12 @@ int percetto_init(size_t category_count,
   // namespace.
   s_percetto.process_uuid = GetProcessUuid();
 
-  perfetto::TracingInitArgs args;
-  args.backends = perfetto::kSystemBackend;
-  args.shmem_size_hint_kb = 32 * 1024;
-  perfetto::Tracing::Initialize(args);
+  perfetto::TracingInitArgs pargs;
+  pargs.backends = perfetto::kSystemBackend;
+  pargs.shmem_size_hint_kb = args->shmem_size_hint_kb;
+  pargs.shmem_page_size_hint_kb = args->shmem_page_size_hint_kb;
+  pargs.shmem_batch_commits_duration_ms = args->shmem_batch_commits_duration_ms;
+  perfetto::Tracing::Initialize(pargs);
 
   return PercettoDataSource::Register() ? 0 : -1;
 }

@@ -41,7 +41,7 @@ static int trace_init(void) {
   ret = PERCETTO_INIT(PERCETTO_CLOCK_BOOTTIME);
   if (ret != 0)
     return ret;
-  PERCETTO_REGISTER_TRACK(gpu_freq);
+  ret = PERCETTO_REGISTER_TRACK(gpu_freq);
   return PERCETTO_REGISTER_TRACK(gpu);
 }
 

@@ -48,8 +48,10 @@ extern "C" {
 #define PERCETTO_CATEGORY_DECLARE(MACRO)
 #define PERCETTO_CATEGORY_DEFINE(MACRO)
 #define PERCETTO_CATEGORY_IS_ENABLED(category) 0
+#define PERCETTO_TRACK_DECLARE(track)
 #define PERCETTO_TRACK_DEFINE(track, track_type)
 #define PERCETTO_INIT(clock_id) 0
+#define PERCETTO_INIT_WITH_ARGS(clock_id, args) ((void)args, 0)
 #define PERCETTO_REGISTER_TRACK(track) 0
 #else
 
@@ -108,6 +110,15 @@ extern "C" {
 #define PERCETTO_INIT(clock_id) percetto_init( \
     sizeof(g_percetto_categories) / sizeof(g_percetto_categories[0]), \
     g_percetto_categories, clock_id)
+
+/**
+ * See PERCETTO_INIT. This variation allows additional configuration.
+ *
+ * @param args percetto_init_args struct.
+ */
+#define PERCETTO_INIT_WITH_ARGS(clock_id, args) percetto_init_with_args( \
+    sizeof(g_percetto_categories) / sizeof(g_percetto_categories[0]), \
+    g_percetto_categories, clock_id, args)
 
 /**
  * Up to PERCETTO_MAX_TRACKS tracks can be added for counters or events that
@@ -176,9 +187,6 @@ extern "C" {
 #define I_PERCETTO_CATEGORY_PTR_COMMA(category, ...) \
     I_PERCETTO_CATEGORY_PTR(category),
 
-#define I_PERCETTO_LOAD_MASK_PTR(category) \
-    (atomic_load_explicit(&(category)->sessions, memory_order_relaxed))
-
 #define I_PERCETTO_LOAD_MASK(category) \
     I_PERCETTO_LOAD_MASK_PTR(&g_percetto_category_##category)
 
@@ -189,6 +197,16 @@ extern "C" {
   }
 
 #endif /* NPERCETTO */
+
+#define I_PERCETTO_LOAD_MASK_PTR(category) \
+    (atomic_load_explicit(&(category)->sessions, memory_order_relaxed))
+
+#define PERCETTO_INIT_ARGS_DEFAULTS() (struct percetto_init_args){ \
+    .shmem_size_hint_kb = 0, \
+    .shmem_page_size_hint_kb = 0, \
+    .shmem_batch_commits_duration_ms = 0, \
+    ._reserved = NULL, \
+  }
 
 #define PERCETTO_LIKELY(x) __builtin_expect(!!(x), 1)
 #define PERCETTO_UNLIKELY(x) __builtin_expect(!!(x), 0)
@@ -232,6 +250,14 @@ enum percetto_event_debug_data_type {
 enum percetto_track_type {
   PERCETTO_TRACK_EVENTS = 0,
   PERCETTO_TRACK_COUNTER,
+};
+
+/* See perfetto::TracingInitArgs. */
+struct percetto_init_args {
+  uint32_t shmem_size_hint_kb;
+  uint32_t shmem_page_size_hint_kb;
+  uint32_t shmem_batch_commits_duration_ms;
+  void* _reserved;
 };
 
 struct percetto_category {
@@ -298,6 +324,14 @@ struct percetto_event_debug_data {
 int percetto_init(size_t category_count,
                   struct percetto_category** categories,
                   enum percetto_clock clock_id);
+
+/**
+ * See PERCETTO_INIT_ARGS.
+ */
+int percetto_init_with_args(size_t category_count,
+                            struct percetto_category** categories,
+                            enum percetto_clock clock_id,
+                            const struct percetto_init_args* args);
 
 /**
  * See PERCETTO_REGISTER_TRACK.
