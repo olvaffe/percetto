@@ -665,21 +665,9 @@ void percetto_event(struct percetto_category* category,
     timestamp = data->timestamp;
   else
     timestamp = GetTimestampNs();
-  if (perfetto_type == TrackEvent::Type::TrackEvent_Type_TYPE_INSTANT &&
-      data->extra != 0) {
-    // TODO(jbates): remove when perfetto UI bug fixed for INSTANT+FLOW events.
-    // Perfetto UI bug requires flow events to be begin+end pairs.
-    PercettoDataSource::TraceTrackEvent(
-        category, sessions, TrackEvent::Type::TrackEvent_Type_TYPE_SLICE_BEGIN,
-        data->name, timestamp, data->track, data->extra, NULL);
-    PercettoDataSource::TraceTrackEvent(
-        category, sessions, TrackEvent::Type::TrackEvent_Type_TYPE_SLICE_END,
-        data->name, timestamp + 1, data->track, 0, NULL);
-  } else {
-    PercettoDataSource::TraceTrackEvent(
-        category, sessions, perfetto_type, data->name, timestamp,
-        data->track, data->extra, NULL);
-  }
+  PercettoDataSource::TraceTrackEvent(
+      category, sessions, perfetto_type, data->name, timestamp,
+      data->track, data->extra, NULL);
 }
 
 extern "C"
@@ -694,19 +682,7 @@ void percetto_event_extended(struct percetto_category* category,
     timestamp = data->timestamp;
   else
     timestamp = GetTimestampNs();
-  if (perfetto_type == TrackEvent::Type::TrackEvent_Type_TYPE_INSTANT &&
-      data->extra != 0) {
-    // TODO(jbates): remove when perfetto UI bug fixed for INSTANT+FLOW events.
-    // Perfetto UI bug requires flow events to be begin+end pairs.
-    PercettoDataSource::TraceTrackEvent(
-        category, sessions, TrackEvent::Type::TrackEvent_Type_TYPE_SLICE_BEGIN,
-        data->name, timestamp, data->track, data->extra, extended);
-    PercettoDataSource::TraceTrackEvent(
-        category, sessions, TrackEvent::Type::TrackEvent_Type_TYPE_SLICE_END,
-        data->name, timestamp + 1, data->track, 0, extended);
-  } else {
-    PercettoDataSource::TraceTrackEvent(
-        category, sessions, perfetto_type, data->name, timestamp,
-        data->track, data->extra, extended);
-  }
+  PercettoDataSource::TraceTrackEvent(
+      category, sessions, perfetto_type, data->name, timestamp,
+      data->track, data->extra, extended);
 }
