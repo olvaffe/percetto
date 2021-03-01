@@ -103,20 +103,30 @@ void atrace_event(struct percetto_category* category,
 
 #define ATRACE_INIT() atrace_init()
 
+static inline void atrace_event_inline(struct percetto_category* category,
+                                       struct percetto_track* track,
+                                       uint32_t sessions,
+                                       int32_t type,
+                                       int64_t extra_value,
+                                       uint64_t timestamp,
+                                       const char* name) {
+  struct percetto_event_data data = {
+    .track = track,
+    .extra = extra_value,
+    .timestamp = timestamp,
+    .name = name
+  };
+  atrace_event(category, sessions, type, &data);
+}
+
 #define ATRACE_ANY_WITH_ARGS_PTR(type, category, ptrack, ts, str_name, \
                                  extra_value) \
     do { \
       const uint32_t I_PERCETTO_UID(mask) = \
           I_PERCETTO_LOAD_MASK_PTR(category); \
       if (PERCETTO_UNLIKELY(I_PERCETTO_UID(mask))) { \
-        struct percetto_event_data I_PERCETTO_UID(data) = { \
-          .track = ptrack, \
-          .extra = (int64_t)(extra_value), \
-          .timestamp = (ts), \
-          .name = (str_name) \
-        }; \
-        atrace_event(category, I_PERCETTO_UID(mask), \
-            (int32_t)(type), &I_PERCETTO_UID(data)); \
+        atrace_event_inline(category, ptrack, I_PERCETTO_UID(mask), \
+            (int32_t)(type), (int64_t)(extra_value), (ts), (str_name)); \
       } \
     } while(0)
 
