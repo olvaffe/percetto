@@ -64,7 +64,7 @@ executable(
 
 executable(
   'atrace',
-  'atrace.c',
+  'atrace.cc',
   'atrace2.c',
   dependencies: atrace_dep,
   c_args : ['-fdata-sections', '-ffunction-sections', '-Os'],

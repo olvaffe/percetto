@@ -25,7 +25,7 @@
 #define ATRACE_TAG ATRACE_TAG_GRAPHICS
 #include "percetto-atrace.h"
 
-extern void atrace2(void);
+extern "C" void atrace2(void);
 
 int main(void) {
   for (;;) {
