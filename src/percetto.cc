@@ -65,12 +65,6 @@ constexpr uint64_t kCustomTrackIdOffset = 1ull << 32;
 
 static Percetto s_percetto;
 
-// Tracks the last incremental update performed by each thread.
-// When this is less than s_target_incremental_update, it means
-// that the thread needs to clear and update the perfetto incremental state.
-static thread_local int s_committed_incremental_update = 0;
-static std::atomic_int s_target_incremental_update(0);
-
 static inline bool IsGroupCategory(const struct percetto_category* category) {
   return category->ext->name == NULL;
 }
@@ -203,17 +197,20 @@ static uint32_t GetEnvU32(const char* var_name, uint32_t default_value) {
   return default_value;
 }
 
-class PercettoDataSource : public perfetto::DataSource<PercettoDataSource> {
-  using Base = DataSource<PercettoDataSource>;
+struct PercettoIncrementalState {
+  bool need_update = true;
+};
+
+struct PercettoDataSourceTraits : public perfetto::DefaultDataSourceTraits {
+  using IncrementalStateType = PercettoIncrementalState;
+};
+
+class PercettoDataSource
+    : public perfetto::DataSource<PercettoDataSource,
+                                  PercettoDataSourceTraits> {
+  using Base = DataSource<PercettoDataSource, PercettoDataSourceTraits>;
 
  public:
-  // Cause all threads to clear and update incremental perfetto data the next
-  // time they send a trace event.
-  // Thread safe.
-  static void KickIncrementalUpdates() {
-    s_target_incremental_update.fetch_add(1, std::memory_order_acq_rel);
-  }
-
   void OnSetup(const DataSourceBase::SetupArgs& args) override {
     PERFETTO_DCHECK(args.config);
     if (!args.config)
@@ -236,7 +233,6 @@ class PercettoDataSource : public perfetto::DataSource<PercettoDataSource> {
       }
     }
     UpdateGroupCategories();
-    KickIncrementalUpdates();
   }
 
   void OnStart(const DataSourceBase::StartArgs&) override {}
@@ -312,10 +308,9 @@ class PercettoDataSource : public perfetto::DataSource<PercettoDataSource> {
       const struct percetto_track* track,
       int64_t extra,
       const struct percetto_event_extended* extended) {
-    bool do_once = NeedIncrementalUpdate();
     TraceWithInstances(sessions, [&](Base::TraceContext ctx) {
-      if (PERCETTO_UNLIKELY(do_once))
-        OncePerTraceSession(ctx);
+      if (PERCETTO_UNLIKELY(ctx.GetIncrementalState()->need_update))
+        DoIncrementalUpdate(ctx);
 
       auto packet = NewTracePacket(ctx,
           TracePacket::SEQ_NEEDS_INCREMENTAL_STATE, timestamp);
@@ -416,22 +411,8 @@ class PercettoDataSource : public perfetto::DataSource<PercettoDataSource> {
     return NewTracePacket(ctx, seq_flags, GetTimestampNs());
   }
 
-  // Thread safe. Returns whether the calling thread needs to update
-  // incremental perfetto state and syncs to s_target_incremental_update.
-  static inline bool NeedIncrementalUpdate() {
-    int target_update = s_target_incremental_update.load(
-        std::memory_order_relaxed);
-    return s_committed_incremental_update != target_update;
-  }
-
-  static inline void SetDoingIncrementalUpdate() {
-    s_committed_incremental_update = s_target_incremental_update.load(
-        std::memory_order_acquire);
-    std::atomic_thread_fence(std::memory_order_acquire);
-  }
-
-  static void OncePerTraceSession(Base::TraceContext& ctx) {
-    SetDoingIncrementalUpdate();
+  static void DoIncrementalUpdate(Base::TraceContext& ctx) {
+    ctx.GetIncrementalState()->need_update = false;
     auto tid = perfetto::base::GetThreadId();
     uint64_t thread_track_uuid = GetTrackUuid(static_cast<uint64_t>(tid));
 
@@ -618,17 +599,17 @@ int percetto_register_group_category(struct percetto_category* category) {
 extern "C"
 int percetto_register_track(struct percetto_track* track) {
   // Lock-free add to array.
+  track->parent_uuid.store(s_percetto.process_uuid, std::memory_order_relaxed);
   for (size_t i = 0; i < s_percetto.tracks.max_size(); ++i) {
     struct percetto_track* null_track = NULL;
+    // Setup the track data for this slot first so that the data is ready
+    // when the track is stored in the array below.
+    uint64_t track_uuid = GetTrackUuid(kCustomTrackIdOffset + i);
+    track->uuid.store(track_uuid, std::memory_order_relaxed);
     // Try to swap new track into this slot.
     if (s_percetto.tracks[i].compare_exchange_strong(null_track, track)) {
-      uint64_t track_uuid = GetTrackUuid(kCustomTrackIdOffset + i);
-      track->uuid.store(track_uuid, std::memory_order_relaxed);
-      track->parent_uuid.store(s_percetto.process_uuid,
-                               std::memory_order_relaxed);
-      std::atomic_thread_fence(std::memory_order_release);
-      // Update incremental state to send info about this track.
-      PercettoDataSource::KickIncrementalUpdates();
+      // Could update incremental state here to immediately send info about
+      // this track. Requires new perfetto API to do that.
       return 0;
     }
   }
