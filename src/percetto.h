@@ -53,6 +53,7 @@ extern "C" {
 #define PERCETTO_INIT(clock_id) 0
 #define PERCETTO_INIT_WITH_ARGS(clock_id, args) ((void)args, 0)
 #define PERCETTO_REGISTER_TRACK(track) 0
+#define I_TRACE_EXT_DATA(...)
 #else
 
 /** Optionally declare categories in a header. */
@@ -190,13 +191,27 @@ extern "C" {
 #define I_PERCETTO_LOAD_MASK(category) \
     I_PERCETTO_LOAD_MASK_PTR(&g_percetto_category_##category)
 
-#define I_PERCETTO_DBG_NONE() { \
+#define I_PERCETTO_DBG_NONE() ( (struct percetto_event_debug_data) { \
     .extended = { .type = PERCETTO_EVENT_EXTENDED_DEBUG_DATA, .next = NULL }, \
     .type = PERCETTO_EVENT_DEBUG_DATA_NONE, \
     .name = NULL, .uint_value = 0 \
-  }
+  } )
 
-#endif /* NPERCETTO */
+#define I_TRACE_EXT_DATA(etype, category, track, ts, str_name, data1, data2, \
+                          data3, data4, data5, data6, data7, data8, data9, \
+                          data10, ...) \
+    do { \
+      const uint32_t I_PERCETTO_UID(mask) = I_PERCETTO_LOAD_MASK(category); \
+      if (PERCETTO_UNLIKELY(I_PERCETTO_UID(mask))) { \
+        percetto_event_ext_data(&g_percetto_category_##category, \
+            I_PERCETTO_UID(mask), (str_name), \
+            (int32_t)(etype), (track), (uint64_t)(ts), \
+            data1, data2, data3, data4, data5, data6, data7, data8, data9, \
+            data10); \
+      } \
+    } while(0)
+
+#endif /* !NPERCETTO */
 
 #define I_PERCETTO_LOAD_MASK_PTR(category) \
     (atomic_load_explicit(&(category)->sessions, memory_order_relaxed))
@@ -403,26 +418,49 @@ static inline void percetto_event_with_args(
   percetto_event(category, mask, type, &data);
 }
 
-/** See TRACE_DEBUG macros. */
-static inline void percetto_event_debug(
+/** See TRACE_DEBUG* macros. */
+static inline void percetto_event_ext_data(
     struct percetto_category* category,
     const uint32_t mask,
     const char* name,
+    int32_t type,
+    const struct percetto_track* track,
+    uint64_t ts,
     struct percetto_event_debug_data dbg1,
     struct percetto_event_debug_data dbg2,
-    struct percetto_event_debug_data dbg3) {
+    struct percetto_event_debug_data dbg3,
+    struct percetto_event_debug_data dbg4,
+    struct percetto_event_debug_data dbg5,
+    struct percetto_event_debug_data dbg6,
+    struct percetto_event_debug_data dbg7,
+    struct percetto_event_debug_data dbg8,
+    struct percetto_event_debug_data dbg9,
+    struct percetto_event_debug_data dbg10) {
   struct percetto_event_data evdata = {
-    .track = NULL,
+    .track = track,
     .extra = 0,
-    .timestamp = 0,
-    // Single-data events use name of the dbg1 data.
-    .name = dbg2.type ? name : dbg1.name,
+    .timestamp = ts,
+    .name = name ? name : dbg1.name,
   };
   if (dbg2.type)
     dbg1.extended.next = &dbg2.extended;
   if (dbg3.type)
     dbg2.extended.next = &dbg3.extended;
-  percetto_event_extended(category, mask, (int32_t)PERCETTO_EVENT_INSTANT,
+  if (dbg4.type)
+    dbg3.extended.next = &dbg4.extended;
+  if (dbg5.type)
+    dbg4.extended.next = &dbg5.extended;
+  if (dbg6.type)
+    dbg5.extended.next = &dbg6.extended;
+  if (dbg7.type)
+    dbg6.extended.next = &dbg7.extended;
+  if (dbg8.type)
+    dbg7.extended.next = &dbg8.extended;
+  if (dbg9.type)
+    dbg8.extended.next = &dbg9.extended;
+  if (dbg10.type)
+    dbg9.extended.next = &dbg10.extended;
+  percetto_event_extended(category, mask, type,
                           &evdata, &dbg1.extended);
 }
 
@@ -467,12 +505,27 @@ static inline void percetto_event_debug(
 #define TRACE_EVENT_BEGIN(category, str_name) \
     TRACE_ANY_WITH_ARGS(PERCETTO_EVENT_BEGIN, category, NULL, 0, str_name, 0)
 
+#define TRACE_EVENT_BEGIN_DATA(category, str_name, ...) \
+    I_TRACE_EXT_DATA(PERCETTO_EVENT_BEGIN, category, NULL, 0, str_name, \
+        __VA_ARGS__, I_PERCETTO_DBG_NONE(), \
+        I_PERCETTO_DBG_NONE(), I_PERCETTO_DBG_NONE(), I_PERCETTO_DBG_NONE(), \
+        I_PERCETTO_DBG_NONE(), I_PERCETTO_DBG_NONE(), I_PERCETTO_DBG_NONE(), \
+        I_PERCETTO_DBG_NONE(), I_PERCETTO_DBG_NONE(), I_PERCETTO_DBG_NONE())
+
 #define TRACE_EVENT_END(category) \
     TRACE_ANY_WITH_ARGS(PERCETTO_EVENT_END, category, NULL, 0, NULL, 0)
 
 #define TRACE_EVENT_BEGIN_ON_TRACK(category, track, timestamp, str_name) \
     TRACE_ANY_WITH_ARGS(PERCETTO_EVENT_BEGIN, category, \
         &g_percetto_track_##track, timestamp, str_name, 0)
+
+#define TRACE_EVENT_BEGIN_ON_TRACK_DATA(category, track, timestamp, str_name, \
+                                        ...) \
+    I_TRACE_EXT_DATA(PERCETTO_EVENT_BEGIN, category, &g_percetto_track_##track, \
+        timestamp, str_name, __VA_ARGS__, I_PERCETTO_DBG_NONE(), \
+        I_PERCETTO_DBG_NONE(), I_PERCETTO_DBG_NONE(), I_PERCETTO_DBG_NONE(), \
+        I_PERCETTO_DBG_NONE(), I_PERCETTO_DBG_NONE(), I_PERCETTO_DBG_NONE(), \
+        I_PERCETTO_DBG_NONE(), I_PERCETTO_DBG_NONE(), I_PERCETTO_DBG_NONE())
 
 #define TRACE_EVENT_END_ON_TRACK(category, track, timestamp) \
     TRACE_ANY_WITH_ARGS(PERCETTO_EVENT_END, category, \
@@ -497,31 +550,35 @@ static inline void percetto_event_debug(
     TRACE_ANY_WITH_ARGS(PERCETTO_EVENT_INSTANT, category, \
         NULL, 0, str_name, i64_cookie)
 
-/* Debug data annotation macros */
+/* Data annotation macros */
 
-#define PERCETTO_BOOL(str_name, value) { \
+#define PERCETTO_BOOL(str_name, value) ( \
+    (struct percetto_event_debug_data) { \
     .extended = { .type = PERCETTO_EVENT_EXTENDED_DEBUG_DATA, .next = NULL }, \
     .type = PERCETTO_EVENT_DEBUG_DATA_BOOL, \
     .name = str_name, .bool_value = (uint32_t)!!(value) \
-  }
+  } )
 
-#define PERCETTO_UINT(str_name, value) { \
+#define PERCETTO_UINT(str_name, value) ( \
+    (struct percetto_event_debug_data) { \
     .extended = { .type = PERCETTO_EVENT_EXTENDED_DEBUG_DATA, .next = NULL }, \
     .type = PERCETTO_EVENT_DEBUG_DATA_UINT, \
     .name = str_name, .uint_value = (value) \
-  }
+  } )
 
-#define PERCETTO_INT(str_name, value) { \
+#define PERCETTO_INT(str_name, value) ( \
+    (struct percetto_event_debug_data) { \
     .extended = { .type = PERCETTO_EVENT_EXTENDED_DEBUG_DATA, .next = NULL }, \
     .type = PERCETTO_EVENT_DEBUG_DATA_INT, \
     .name = str_name, .int_value = (value) \
-  }
+  } )
 
-#define PERCETTO_DOUBLE(str_name, value) { \
+#define PERCETTO_DOUBLE(str_name, value) ( \
+    (struct percetto_event_debug_data) { \
     .extended = { .type = PERCETTO_EVENT_EXTENDED_DEBUG_DATA, .next = NULL }, \
     .type = PERCETTO_EVENT_DEBUG_DATA_DOUBLE, \
     .name = str_name, .double_value = (value) \
-  }
+  } )
 
 /**
  * @param str_value Expression that evaluates to const char*. Only evaluated
@@ -530,61 +587,56 @@ static inline void percetto_event_debug(
  *   std::string(compute_string()).c_str()
  *   my_debug_string_func(x, y, z)
  */
-#define PERCETTO_STRING(str_name, str_value) { \
+#define PERCETTO_STRING(str_name, str_value) ( \
+    (struct percetto_event_debug_data) { \
     .extended = { .type = PERCETTO_EVENT_EXTENDED_DEBUG_DATA, .next = NULL }, \
     .type = PERCETTO_EVENT_DEBUG_DATA_STRING, \
     .name = str_name, .string_value = (str_value) \
-  }
+  } )
 
-#define PERCETTO_POINTER(str_name, ptr) { \
+#define PERCETTO_POINTER(str_name, ptr) ( \
+    (struct percetto_event_debug_data) { \
     .extended = { .type = PERCETTO_EVENT_EXTENDED_DEBUG_DATA, .next = NULL }, \
     .type = PERCETTO_EVENT_DEBUG_DATA_POINTER, \
     .name = str_name, .pointer_value = (uintptr_t)(ptr) \
-  }
+  } )
 
-#if (defined(NPERCETTO) || defined(NPERCETTODEBUG))
-#define TRACE_DEBUG_DATA(category, data)
-#define TRACE_DEBUG_DATA2(category, str_name, data1, data2)
-#define TRACE_DEBUG_DATA3(category, str_name, data1, data2, data3)
-#else
+/* Shorthand debug values that use the value as the name */
 
+#define PERCETTO_B(value) PERCETTO_BOOL(#value, value)
+#define PERCETTO_UI(value) PERCETTO_UINT(#value, value)
+#define PERCETTO_I(value) PERCETTO_INT(#value, value)
+#define PERCETTO_F(value) PERCETTO_DOUBLE(#value, value)
+#define PERCETTO_S(value) PERCETTO_STRING(#value, value)
+#define PERCETTO_P(value) PERCETTO_POINTER(#value, value)
+
+/* Debug data tracing macros */
+
+/**
+ * Add data annotation to the trace.
+ * @param data One of the typed data macros above: PERCETTO_UINT, etc.
+ * Examples:
+ *   TRACE_DEBUG_DATA(mycat, PERCETTO_UINT("mynum", num));
+ *   TRACE_DEBUG_DATA(mycat, PERCETTO_F(float_value));
+ */
 #define TRACE_DEBUG_DATA(category, data) \
-    do { \
-      const uint32_t I_PERCETTO_UID(mask) = I_PERCETTO_LOAD_MASK(category); \
-      if (PERCETTO_UNLIKELY(I_PERCETTO_UID(mask))) { \
-        percetto_event_debug(&g_percetto_category_##category, \
-            I_PERCETTO_UID(mask), NULL, \
-            (struct percetto_event_debug_data)data, \
-            (struct percetto_event_debug_data)I_PERCETTO_DBG_NONE(), \
-            (struct percetto_event_debug_data)I_PERCETTO_DBG_NONE()); \
-      } \
-    } while(0)
+    I_TRACE_EXT_DATA(PERCETTO_EVENT_INSTANT, category, NULL, 0, NULL, data, \
+        I_PERCETTO_DBG_NONE(), \
+        I_PERCETTO_DBG_NONE(), I_PERCETTO_DBG_NONE(), I_PERCETTO_DBG_NONE(), \
+        I_PERCETTO_DBG_NONE(), I_PERCETTO_DBG_NONE(), I_PERCETTO_DBG_NONE(), \
+        I_PERCETTO_DBG_NONE(), I_PERCETTO_DBG_NONE(), I_PERCETTO_DBG_NONE())
 
-#define TRACE_DEBUG_DATA2(category, str_name, data1, data2) \
-    do { \
-      const uint32_t I_PERCETTO_UID(mask) = I_PERCETTO_LOAD_MASK(category); \
-      if (PERCETTO_UNLIKELY(I_PERCETTO_UID(mask))) { \
-        percetto_event_debug(&g_percetto_category_##category, \
-            I_PERCETTO_UID(mask), (str_name), \
-            (struct percetto_event_debug_data)data1, \
-            (struct percetto_event_debug_data)data2, \
-            (struct percetto_event_debug_data)I_PERCETTO_DBG_NONE()); \
-      } \
-    } while(0)
-
-#define TRACE_DEBUG_DATA3(category, str_name, data1, data2, data3) \
-    do { \
-      const uint32_t I_PERCETTO_UID(mask) = I_PERCETTO_LOAD_MASK(category); \
-      if (PERCETTO_UNLIKELY(I_PERCETTO_UID(mask))) { \
-        percetto_event_debug(&g_percetto_category_##category, \
-            I_PERCETTO_UID(mask), (str_name), \
-            (struct percetto_event_debug_data)data1, \
-            (struct percetto_event_debug_data)data2, \
-            (struct percetto_event_debug_data)data3); \
-      } \
-    } while(0)
-
-#endif /* NPERCETTO || NPERCETTODEBUG */
+/**
+ * Add up to 10 data annotations to the trace.
+ * Examples:
+ *   TRACE_DEBUG_DATAS(mycat, "my_data", PERCETTO_I(num), PERCETTO_S(name));
+ */
+#define TRACE_DEBUG_DATAS(category, str_name, ...) \
+    I_TRACE_EXT_DATA(PERCETTO_EVENT_INSTANT, category, NULL, 0, str_name, \
+        __VA_ARGS__, I_PERCETTO_DBG_NONE(), \
+        I_PERCETTO_DBG_NONE(), I_PERCETTO_DBG_NONE(), I_PERCETTO_DBG_NONE(), \
+        I_PERCETTO_DBG_NONE(), I_PERCETTO_DBG_NONE(), I_PERCETTO_DBG_NONE(), \
+        I_PERCETTO_DBG_NONE(), I_PERCETTO_DBG_NONE(), I_PERCETTO_DBG_NONE())
 
 #ifdef __cplusplus
 }

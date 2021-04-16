@@ -46,6 +46,9 @@ static int trace_init(void) {
 }
 
 static void test(void) {
+  static int frame = 0;
+  ++frame;
+
   if (PERCETTO_CATEGORY_IS_ENABLED(gfx)) {
     // Fabricate some GPU-like timings that have been gathered up for tracing.
     struct timespec ts = {0};
@@ -55,7 +58,7 @@ static void test(void) {
     ns -= 16 * 1000000;
 
     TRACE_COUNTER_TS(gfx, gpu_freq, ns, 300);
-    TRACE_EVENT_BEGIN_ON_TRACK(gfx, gpu, ns, "GPU");
+    TRACE_EVENT_BEGIN_ON_TRACK_DATA(gfx, gpu, ns, "GPU", PERCETTO_I(frame));
       ns += 1000;
       TRACE_COUNTER_TS(gfx, gpu_freq, ns, 900);
       TRACE_EVENT_BEGIN_ON_TRACK(gfx, gpu, ns, "draw1");

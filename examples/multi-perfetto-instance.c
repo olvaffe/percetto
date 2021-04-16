@@ -40,7 +40,9 @@ static void test(void) {
   static int64_t flow_id = 1;
   ++flow_id;
   TRACE_FLOW(test, "flow1", flow_id);
+  TRACE_EVENT_BEGIN_DATA(test, "shlib call", PERCETTO_I(flow_id));
   test_shlib_func(flow_id);
+  TRACE_EVENT_END(test);
 }
 
 int main(void) {

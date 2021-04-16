@@ -52,9 +52,9 @@ static void test(void) {
 
   // Debug annotations
   TRACE_DEBUG_DATA(dog, PERCETTO_BOOL("have_squirrels", count));
-  TRACE_DEBUG_DATA2(dog, "my_data", PERCETTO_DOUBLE("inverse", 1.0 / count),
-      PERCETTO_POINTER("p_count", &count));
-  TRACE_DEBUG_DATA3(dog, "more_data", PERCETTO_UINT("a", 2),
+  TRACE_DEBUG_DATAS(dog, "my_data", PERCETTO_DOUBLE("inverse", 1.0 / count),
+      PERCETTO_P(&count));
+  TRACE_DEBUG_DATAS(dog, "more_data", PERCETTO_UINT("a", 2),
       PERCETTO_INT("b", -5), PERCETTO_STRING("str", "debug string"));
 }
 
