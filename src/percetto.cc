@@ -18,6 +18,16 @@
 #define _GNU_SOURCE  // for pthread_getname_np
 #endif
 
+#if defined(_M_IA64) || defined(_M_IX86) || defined(__ia64__) || \
+    defined(__i386__) || defined(__amd64__) || defined(__x86_64__) || \
+    defined(_M_AMD64)
+  #define HAS_RDTSC
+#endif
+#if defined(_M_ARM) || defined(_M_ARMT) || defined(__arm__) || \
+    defined(__thumb__) || defined(__aarch64__)
+  // TODO(jbates): support ARM CPU counter
+#endif
+
 #include "percetto.h"
 
 #include <limits.h>
@@ -25,6 +35,13 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <unistd.h>
+#ifdef HAS_RDTSC
+  #ifdef _MSC_VER
+  #include <intrin.h>
+  #else
+  #include <x86intrin.h>
+  #endif
+#endif
 
 #include <array>
 #include <atomic>
@@ -179,6 +196,31 @@ static clockid_t GetClockIdFrom(BuiltinClock perfetto_clock,
       *result = perfetto::protos::pbzero::BUILTIN_CLOCK_BOOTTIME;
       return CLOCK_BOOTTIME;
   }
+}
+
+static BuiltinClock GetBuiltinClockIdFrom(clockid_t clockid) {
+  switch(clockid) {
+    default:
+      return perfetto::protos::pbzero::BUILTIN_CLOCK_REALTIME;
+    case CLOCK_REALTIME_COARSE:
+      return perfetto::protos::pbzero::BUILTIN_CLOCK_REALTIME_COARSE;
+    case CLOCK_MONOTONIC:
+      return perfetto::protos::pbzero::BUILTIN_CLOCK_MONOTONIC;
+    case CLOCK_MONOTONIC_COARSE:
+      return perfetto::protos::pbzero::BUILTIN_CLOCK_MONOTONIC_COARSE;
+    case CLOCK_MONOTONIC_RAW:
+      return perfetto::protos::pbzero::BUILTIN_CLOCK_MONOTONIC_RAW;
+    case CLOCK_BOOTTIME:
+      return perfetto::protos::pbzero::BUILTIN_CLOCK_BOOTTIME;
+  }
+}
+
+static inline uint64_t GetCpuTicks() {
+  #ifdef HAS_RDTSC
+  return __rdtsc();
+  #else
+  return 0;
+  #endif
 }
 
 static inline uint64_t GetTimestampNs() {
@@ -487,6 +529,29 @@ class PercettoDataSource
       if (static_cast<percetto_track_type>(track->type) ==
           PERCETTO_TRACK_COUNTER)
         track_descriptor->set_counter();
+    }
+
+    // Add time sync data
+    {
+      auto packet =
+          NewTracePacket(ctx, TracePacket::SEQ_NEEDS_INCREMENTAL_STATE);
+
+      auto clocks = packet->set_clock_snapshot();
+
+      uint64_t boottime = GetTimestampNs();
+      uint64_t cputime = GetCpuTicks();
+      // Read again to make sure we get times without cache misses.
+      boottime = GetTimestampNs();
+      cputime = GetCpuTicks();
+
+      auto clock_boottime = clocks->add_clocks();
+      clock_boottime->set_clock_id(
+          GetBuiltinClockIdFrom(s_percetto.trace_clock_id));
+      clock_boottime->set_timestamp(boottime);
+
+      auto clock_cputime = clocks->add_clocks();
+      clock_cputime->set_clock_id(64);
+      clock_cputime->set_timestamp(cputime);
     }
   }
 };
