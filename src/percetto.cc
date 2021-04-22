@@ -80,6 +80,12 @@ struct Percetto {
 // constant, so we will use a large value.
 constexpr uint64_t kCustomTrackIdOffset = 1ull << 32;
 
+// Perfetto's protobuf protocol documents 64-127 as the custom clock id range:
+// https://android.googlesource.com/platform/external/perfetto/+/refs/heads/master/protos/perfetto/trace/clock_snapshot.proto#43
+// This ID will be used in a clock_snapshot proto to represent the CPU counter
+// value along with a system clock value for synchronization.
+constexpr uint32_t kCpuCounterClockId = 64;
+
 static Percetto s_percetto;
 
 static inline bool IsGroupCategory(const struct percetto_category* category) {
@@ -550,7 +556,7 @@ class PercettoDataSource
       clock_boottime->set_timestamp(boottime);
 
       auto clock_cputime = clocks->add_clocks();
-      clock_cputime->set_clock_id(64);
+      clock_cputime->set_clock_id(kCpuCounterClockId);
       clock_cputime->set_timestamp(cputime);
     }
   }
