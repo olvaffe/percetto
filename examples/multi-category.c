@@ -40,10 +40,12 @@ static int trace_init(void) {
 
 static void test(void) {
   TRACE_EVENT(cat, __func__);
-  TRACE_EVENT(dog, "test2");
+
+  TRACE_EVENT_BEGIN_DATA(dog, "test2", PERCETTO_S("begin"));
   const char* test3 = "instant";
   (void)test3; // avoid unused warning when trace macros are disabled.
   TRACE_INSTANT(dog, test3);
+  TRACE_EVENT_END(dog);
 
   // Counter
   static int count = 1;
@@ -51,10 +53,10 @@ static void test(void) {
   TRACE_COUNTER(dbg_or_dog, squirrels, count);
 
   // Debug annotations
-  TRACE_DEBUG_DATA(dog, PERCETTO_BOOL("have_squirrels", count));
-  TRACE_DEBUG_DATAS(dog, "my_data", PERCETTO_DOUBLE("inverse", 1.0 / count),
+  TRACE_DATUM(dog, PERCETTO_BOOL("have_squirrels", count));
+  TRACE_DATA(dog, "my_data", PERCETTO_DOUBLE("inverse", 1.0 / count),
       PERCETTO_P(&count));
-  TRACE_DEBUG_DATAS(dog, "more_data", PERCETTO_UINT("a", 2),
+  TRACE_DATA(dog, "more_data", PERCETTO_UINT("a", 2),
       PERCETTO_INT("b", -5), PERCETTO_STRING("str", "debug string"));
 }
 

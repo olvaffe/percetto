@@ -469,6 +469,11 @@ static inline void percetto_event_ext_data(
 #define TRACE_ANY_WITH_ARGS_PTR(type, category, ptrack, ts, str_name, extra)
 #else
 
+#define I_PERCETTO_END_CLEANUP(category) \
+    struct percetto_category* I_PERCETTO_UID(trace_scoped) \
+        __attribute__((cleanup(percetto_cleanup_end), unused)) = \
+            &g_percetto_category_##category
+
 /**
  * Trace the current scope.
  *
@@ -481,9 +486,19 @@ static inline void percetto_event_ext_data(
     if (PERCETTO_UNLIKELY(I_PERCETTO_UID(mask))) \
       percetto_event_begin(&g_percetto_category_##category, \
           I_PERCETTO_UID(mask), (str_name)); \
-    struct percetto_category* I_PERCETTO_UID(trace_scoped) \
-        __attribute__((cleanup(percetto_cleanup_end), unused)) = \
-            &g_percetto_category_##category
+    I_PERCETTO_END_CLEANUP(category)
+
+/**
+ * Trace the current scope with data annotations.
+ *
+ * @param category Category identifier.
+ * @param str_name Must evaluate to a const char*. It is only evaluated when
+ * tracing is enabled.
+ * @param ... Data annotations (see PERCETTO_UI, PERCETTO_S, etc).
+ */
+#define TRACE_EVENT_DATA(category, str_name, ...) \
+    TRACE_EVENT_BEGIN_DATA(category, str_name, __VA_ARGS__); \
+    I_PERCETTO_END_CLEANUP(category)
 
 #define TRACE_ANY_WITH_ARGS_PTR(type, category, ptrack, ts, str_name, \
                                 extra_value) \
@@ -601,7 +616,7 @@ static inline void percetto_event_ext_data(
     .name = str_name, .pointer_value = (uintptr_t)(ptr) \
   } )
 
-/* Shorthand debug values that use the value as the name */
+/* Shorthand macros that use the value text as the name */
 
 #define PERCETTO_B(value) PERCETTO_BOOL(#value, value)
 #define PERCETTO_UI(value) PERCETTO_UINT(#value, value)
@@ -610,16 +625,16 @@ static inline void percetto_event_ext_data(
 #define PERCETTO_S(value) PERCETTO_STRING(#value, value)
 #define PERCETTO_P(value) PERCETTO_POINTER(#value, value)
 
-/* Debug data tracing macros */
+/* Data tracing macros */
 
 /**
  * Add data annotation to the trace.
  * @param data One of the typed data macros above: PERCETTO_UINT, etc.
  * Examples:
- *   TRACE_DEBUG_DATA(mycat, PERCETTO_UINT("mynum", num));
- *   TRACE_DEBUG_DATA(mycat, PERCETTO_F(float_value));
+ *   TRACE_DATUM(mycat, PERCETTO_UINT("mynum", num));
+ *   TRACE_DATUM(mycat, PERCETTO_F(float_value));
  */
-#define TRACE_DEBUG_DATA(category, data) \
+#define TRACE_DATUM(category, data) \
     I_TRACE_EXT_DATA(PERCETTO_EVENT_INSTANT, category, NULL, 0, NULL, data, \
         I_PERCETTO_DBG_NONE(), \
         I_PERCETTO_DBG_NONE(), I_PERCETTO_DBG_NONE(), I_PERCETTO_DBG_NONE(), \
@@ -629,9 +644,9 @@ static inline void percetto_event_ext_data(
 /**
  * Add up to 10 data annotations to the trace.
  * Examples:
- *   TRACE_DEBUG_DATAS(mycat, "my_data", PERCETTO_I(num), PERCETTO_S(name));
+ *   TRACE_DATA(mycat, "my_data", PERCETTO_I(num), PERCETTO_S(name));
  */
-#define TRACE_DEBUG_DATAS(category, str_name, ...) \
+#define TRACE_DATA(category, str_name, ...) \
     I_TRACE_EXT_DATA(PERCETTO_EVENT_INSTANT, category, NULL, 0, str_name, \
         __VA_ARGS__, I_PERCETTO_DBG_NONE(), \
         I_PERCETTO_DBG_NONE(), I_PERCETTO_DBG_NONE(), I_PERCETTO_DBG_NONE(), \
