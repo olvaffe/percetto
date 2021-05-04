@@ -17,7 +17,8 @@ thread for Perfetto. The binary size is typically about 450KB.
 ## Building PerCetto
 
 Clone a [recent release](https://github.com/google/perfetto/releases) of
-Perfetto to get the Perfetto SDK (perfetto.h and perfetto.cc).
+Perfetto, make sure to checkout a release branch as the `main` branch does
+not have the Perfetto SDK folder (perfetto.h and perfetto.cc).
 
 Configure and build PerCetto:
 ```
