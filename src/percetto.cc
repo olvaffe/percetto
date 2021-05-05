@@ -283,8 +283,9 @@ class PercettoDataSource
                 std::end(s_percetto.categories[i]->ext->strings),
                 std::begin(tags));
       if (IsCategoryEnabled(s_percetto.categories[i]->ext->name, tags, config)) {
-        std::atomic_fetch_or(&s_percetto.categories[i]->sessions,
-                             1ul << args.internal_instance_index);
+        std::atomic_fetch_or<std::uint_fast32_t>(
+            &s_percetto.categories[i]->sessions,
+            1ul << args.internal_instance_index);
       }
     }
     UpdateGroupCategories();
@@ -295,7 +296,8 @@ class PercettoDataSource
   void OnStop(const DataSourceBase::StopArgs& args) override {
     int count = s_percetto.category_count.load(std::memory_order_acquire);
     for (int i = 0; i < count; i++) {
-      std::atomic_fetch_and(&s_percetto.categories[i]->sessions,
+      std::atomic_fetch_and<std::uint_fast32_t>(
+          &s_percetto.categories[i]->sessions,
           ~(1ul << args.internal_instance_index));
     }
     UpdateGroupCategories();
