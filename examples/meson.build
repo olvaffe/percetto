@@ -34,7 +34,7 @@ executable(
   'threads.cc',
   dependencies: percetto_dep,
   cpp_args : ['-fdata-sections', '-ffunction-sections', '-Os'],
-  link_args : ['-Wl,--gc-sections'],
+  link_args : ['-Wl,--gc-sections', '-pthread'],
 )
 
 executable(
