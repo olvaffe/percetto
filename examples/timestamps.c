@@ -33,6 +33,7 @@ PERCETTO_CATEGORY_DEFINE(MY_PERCETTO_CATEGORIES);
 
 PERCETTO_TRACK_DEFINE(gpu, PERCETTO_TRACK_EVENTS);
 PERCETTO_TRACK_DEFINE(gpu_freq, PERCETTO_TRACK_COUNTER);
+PERCETTO_TRACK_DEFINE(present, PERCETTO_TRACK_EVENTS);
 
 static int trace_init(void) {
   int ret;
@@ -42,6 +43,7 @@ static int trace_init(void) {
   if (ret != 0)
     return ret;
   ret = PERCETTO_REGISTER_TRACK(gpu_freq);
+  ret = PERCETTO_REGISTER_TRACK(present);
   return PERCETTO_REGISTER_TRACK(gpu);
 }
 
@@ -87,8 +89,10 @@ int main(void) {
     TRACE_EVENT(gfx, "do_test_iteration");
     test();
 
+    TRACE_EVENT_BEGIN_ON_TRACK(gfx, present, 0, "present");
     struct timespec t = {0, 10000000};
     nanosleep(&t, NULL);
+    TRACE_EVENT_END_ON_TRACK(gfx, present, 0);
   }
 
   return 0;

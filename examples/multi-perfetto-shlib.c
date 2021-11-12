@@ -18,7 +18,8 @@
 #include "multi-perfetto-shlib.h"
 
 #define MY_PERCETTO_CATEGORIES(C, G) \
-  C(shlib, "Shared lib test events")
+  C(shlib, "Shared lib test events") \
+  C(test2, "Non-slow test2 events")
 
 PERCETTO_CATEGORY_DEFINE(MY_PERCETTO_CATEGORIES);
 

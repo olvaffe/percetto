@@ -32,6 +32,8 @@
 PERCETTO_CATEGORY_DEFINE(MY_PERCETTO_CATEGORIES);
 
 PERCETTO_TRACK_DEFINE(mycount, PERCETTO_TRACK_COUNTER);
+PERCETTO_TRACK_DEFINE(trk2, PERCETTO_TRACK_COUNTER);
+PERCETTO_TRACK_DEFINE(trk3, PERCETTO_TRACK_COUNTER);
 
 static void test(const char* name) {
   pthread_setname_np(pthread_self(), name);
@@ -44,6 +46,8 @@ static void test(const char* name) {
     static int count = 1;
     count++;
     TRACE_COUNTER(test, mycount, count);
+    TRACE_COUNTER(test, trk2, count / 10);
+    TRACE_COUNTER(test, trk3, count / 100);
   }
 }
 
@@ -59,7 +63,19 @@ int main(void) {
 
   ret = PERCETTO_REGISTER_TRACK(mycount);
   if (ret != 0) {
-    fprintf(stderr, "warning: failed to register track: %d\n", ret);
+    fprintf(stderr, "warning: failed to register track1: %d\n", ret);
+    return -1;
+  }
+
+  ret = PERCETTO_REGISTER_TRACK(trk2);
+  if (ret != 0) {
+    fprintf(stderr, "warning: failed to register track2: %d\n", ret);
+    return -1;
+  }
+
+  ret = PERCETTO_REGISTER_TRACK(trk3);
+  if (ret != 0) {
+    fprintf(stderr, "warning: failed to register track3: %d\n", ret);
     return -1;
   }
 

@@ -38,7 +38,8 @@ using std::size_t;
 extern "C" {
 #endif
 
-#define PERCETTO_MAX_CATEGORIES 256
+// Process-wide limits.
+#define PERCETTO_MAX_CATEGORIES 64
 #define PERCETTO_MAX_GROUP_CATEGORIES 32
 #define PERCETTO_MAX_GROUP_SIZE 4
 #define PERCETTO_MAX_CATEGORY_TAGS 4
@@ -220,6 +221,7 @@ extern "C" {
     .shmem_size_hint_kb = 0, \
     .shmem_page_size_hint_kb = 0, \
     .shmem_batch_commits_duration_ms = 0, \
+    .flags = 0, \
     ._reserved = NULL, \
   }
 
@@ -280,6 +282,7 @@ struct percetto_init_args {
   uint32_t shmem_size_hint_kb;
   uint32_t shmem_page_size_hint_kb;
   uint32_t shmem_batch_commits_duration_ms;
+  uint32_t flags;
   void* _reserved;
 };
 
@@ -344,6 +347,7 @@ struct percetto_event_debug_data {
 /**
  * See PERCETTO_INIT.
  */
+__attribute__((visibility("default")))
 int percetto_init(size_t category_count,
                   struct percetto_category** categories,
                   enum percetto_clock clock_id);
@@ -351,6 +355,7 @@ int percetto_init(size_t category_count,
 /**
  * See PERCETTO_INIT_ARGS.
  */
+__attribute__((visibility("default")))
 int percetto_init_with_args(size_t category_count,
                             struct percetto_category** categories,
                             enum percetto_clock clock_id,
@@ -359,6 +364,7 @@ int percetto_init_with_args(size_t category_count,
 /**
  * See PERCETTO_REGISTER_TRACK.
  */
+__attribute__((visibility("default")))
 int percetto_register_track(struct percetto_track* track);
 
 /**
@@ -369,24 +375,29 @@ int percetto_register_track(struct percetto_track* track);
  *
  * @param category Category data in persistent memory.
  */
+__attribute__((visibility("default")))
 int percetto_register_group_category(struct percetto_category* category);
 
 /** See TRACE_EVENT macros. */
+__attribute__((visibility("default")))
 void percetto_event_begin(struct percetto_category* category,
                           uint32_t sessions,
                           const char* name);
 
 /** See TRACE_EVENT macros. */
+__attribute__((visibility("default")))
 void percetto_event_end(struct percetto_category* category,
                         uint32_t sessions);
 
 /** See TRACE_INSTANT, TRACE_COUNTER, TRACE_ANY_WITH_ARGS macros. */
+__attribute__((visibility("default")))
 void percetto_event(struct percetto_category* category,
                     uint32_t sessions,
                     int32_t type,
                     const struct percetto_event_data* data);
 
 /** See TRACE_DEBUG macros. */
+__attribute__((visibility("default")))
 void percetto_event_extended(struct percetto_category* category,
                              uint32_t sessions,
                              int32_t type,

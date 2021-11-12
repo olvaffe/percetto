@@ -13,14 +13,14 @@
 # limitations under the License.
 #
 
-percetto_lib = static_library(
+percetto_lib = shared_library(
   'percetto',
   'percetto.cc',
   'perfetto-port.cc',
   dependencies: perfetto_sdk_dep,
-  cpp_args : ['-fdata-sections', '-ffunction-sections', '-Os'],
+  cpp_args : ['-fvisibility=hidden', '-fdata-sections', '-ffunction-sections', '-Os'],
+  link_args : ['-Wl,--gc-sections', '-Wl,--exclude-libs,ALL'],
   install : true,
-  pic : true,
 )
 
 percetto_dep = declare_dependency(
