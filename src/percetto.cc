@@ -150,11 +150,15 @@ static const char* TryGetProcessExeName(char* buffer, size_t buffer_size) {
 }
 
 static const char* TryGetThreadName(char* buffer, size_t buffer_size) {
+#ifndef __ANDROID__
   pthread_t thread = pthread_self();
   int result = pthread_getname_np(thread, buffer, buffer_size);
   if (result != 0)
     return NULL;
   return buffer;
+#else
+  return NULL;
+#endif
 }
 
 static uint64_t GetTrackUuid(uint64_t trackid) {
@@ -276,8 +280,7 @@ class PercettoDataSource
                 std::end(s_percetto.categories[i]->ext->strings),
                 std::begin(tags));
       if (IsCategoryEnabled(s_percetto.categories[i]->ext->name, tags, config)) {
-        std::atomic_fetch_or(&s_percetto.categories[i]->sessions,
-                             1ul << args.internal_instance_index);
+        s_percetto.categories[i]->sessions.fetch_or(1ul << args.internal_instance_index);
       }
     }
     UpdateGroupCategories();
@@ -287,8 +290,7 @@ class PercettoDataSource
 
   void OnStop(const DataSourceBase::StopArgs& args) override {
     for (int i = 0; i < s_percetto.category_count; i++) {
-      std::atomic_fetch_and(&s_percetto.categories[i]->sessions,
-          ~(1ul << args.internal_instance_index));
+      s_percetto.categories[i]->sessions.fetch_and(~(1ul << args.internal_instance_index));
     }
     UpdateGroupCategories();
   }
