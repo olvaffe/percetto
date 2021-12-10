@@ -23,9 +23,8 @@
     defined(_M_AMD64)
   #define HAS_RDTSC
 #endif
-#if defined(_M_ARM) || defined(_M_ARMT) || defined(__arm__) || \
-    defined(__thumb__) || defined(__aarch64__)
-  // TODO(jbates): support ARM CPU counter
+#if defined(__aarch64__)
+  #define HAS_CNTVCT
 #endif
 
 #include "percetto.h"
@@ -222,11 +221,15 @@ static BuiltinClock GetBuiltinClockIdFrom(clockid_t clockid) {
 }
 
 static inline uint64_t GetCpuTicks() {
-  #ifdef HAS_RDTSC
+#ifdef HAS_RDTSC
   return __rdtsc();
-  #else
+#elif defined(HAS_CNTVCT)
+  uint64_t vct;
+  asm volatile("mrs %0, cntvct_el0" : "=r"(vct));
+  return vct;
+#else
   return 0;
-  #endif
+#endif
 }
 
 static inline uint64_t GetTimestampNs() {
