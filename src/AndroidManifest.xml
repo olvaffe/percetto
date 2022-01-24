@@ -1,0 +1,7 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+  package="io.github.olvaffe.percetto">
+  <!--
+      Copyright 2022, Collabora, Ltd.
+      SPDX-License-Identifier: BSL-1.0
+  -->
+</manifest>

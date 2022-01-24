@@ -1,0 +1,6 @@
+{
+    "schema_version": 1,
+    "name": "@PROJECT_NAME@",
+    "version": "@PROJECT_VERSION_MAJOR@.@PROJECT_VERSION_MINOR@.@PROJECT_VERSION_PATCH@.@PROJECT_VERSION_TWEAK@",
+    "dependencies": []
+}

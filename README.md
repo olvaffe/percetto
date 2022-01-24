@@ -26,6 +26,15 @@ meson build -Dperfetto-sdk=path/to/perfetto/sdk
 meson compile -C build
 ```
 
+Alternately, you can use CMake. It will assume that you've cloned a recent
+release of Perfetto next to the percetto directory, unless you pass
+`-DPERFETTO_SDK_PATH=some/other/location`.
+
+```sh
+cmake -S . -B build -G Ninja
+ninja -C build
+```
+
 ## Directory Structure
 
 `perfetto-sdk` contains rules to locate and build Perfetto SDK.
