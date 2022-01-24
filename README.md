@@ -20,8 +20,17 @@ Clone a [recent release](https://github.com/google/perfetto/releases) of
 Perfetto, make sure to checkout a release branch as the `main` branch does
 not have the Perfetto SDK folder (perfetto.h and perfetto.cc).
 
-Configure and build PerCetto:
+e.g.
+
+```sh
+git clone https://github.com/google/perfetto -b release/v23.x
 ```
+
+(Only the release branches contain the amalgamated SDK source files.)
+
+Configure and build PerCetto:
+
+```sh
 meson build -Dperfetto-sdk=path/to/perfetto/sdk
 meson compile -C build
 ```
