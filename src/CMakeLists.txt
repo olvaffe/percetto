@@ -17,7 +17,18 @@ set_target_properties(
 target_include_directories(percetto PUBLIC $<BUILD_INTERFACE:${PERFETTO_SDK_PATH}>)
 target_include_directories(percetto PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
                                            $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
-
+if("${CMAKE_C_COMPILER_ID}" STREQUAL "Clang" OR "${CMAKE_C_COMPILER_ID}" STREQUAL "GNU")
+    # Limit what symbols are exported
+    set_property(
+        TARGET percetto
+        APPEND_STRING
+        PROPERTY LINK_FLAGS "-Wl,--version-script=${CMAKE_CURRENT_SOURCE_DIR}/percetto.exports")
+    # Re-link if the version script changes.
+    set_property(
+        TARGET percetto
+        APPEND
+        PROPERTY LINK_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/percetto.exports")
+endif()
 install(FILES percetto.h perfetto-port.h DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
 install(
     TARGETS percetto

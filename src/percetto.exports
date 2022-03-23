@@ -1,0 +1,14 @@
+{
+  global:
+    percetto_register_group_category;
+    percetto_register_track;
+    percetto_event_begin;
+    percetto_event_end;
+    percetto_event;
+    percetto_event_extended;
+    percetto_init_with_args;
+    percetto_init;
+
+  local:
+    *;
+};
