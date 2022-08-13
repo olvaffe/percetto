@@ -56,7 +56,6 @@ namespace {
 using perfetto::protos::gen::TrackDescriptor;
 using perfetto::protos::gen::TrackEventConfig;
 using perfetto::protos::pbzero::BuiltinClock;
-using perfetto::protos::pbzero::CounterDescriptor_Unit_UNIT_COUNT;
 using perfetto::protos::pbzero::DataSourceDescriptor;
 using perfetto::protos::pbzero::TracePacket;
 using perfetto::protos::pbzero::TrackEvent;
@@ -399,10 +398,10 @@ class PercettoDataSource
         AddCategoryGroup(event, category);
       }
 
-      if (type == TrackEvent::Type::TrackEvent_Type_TYPE_COUNTER) {
+      if (type == TrackEvent::TYPE_COUNTER) {
         event->set_counter_value(extra);
       } else {
-        if (type != TrackEvent::Type::TrackEvent_Type_TYPE_SLICE_END)
+        if (type != TrackEvent::TYPE_SLICE_END)
           event->set_name(name, strlen(name));
         if (extra != 0)
           event->add_flow_ids(static_cast<uint64_t>(extra));
@@ -724,7 +723,7 @@ void percetto_event_begin(struct percetto_category* category,
                           uint32_t sessions,
                           const char* name) {
   PercettoDataSource::TraceTrackEvent(
-      category, sessions, TrackEvent::Type::TrackEvent_Type_TYPE_SLICE_BEGIN,
+      category, sessions, TrackEvent::TYPE_SLICE_BEGIN,
       name, GetTimestampNs(), NULL, 0, NULL);
 }
 
@@ -732,7 +731,7 @@ extern "C"
 void percetto_event_end(struct percetto_category* category,
                         uint32_t sessions) {
   PercettoDataSource::TraceTrackEvent(
-      category, sessions, TrackEvent::Type::TrackEvent_Type_TYPE_SLICE_END,
+      category, sessions, TrackEvent::TYPE_SLICE_END,
       NULL, GetTimestampNs(), NULL, 0, NULL);
 }
 
