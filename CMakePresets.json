@@ -1,0 +1,135 @@
+{
+    "version": 3,
+    "cmakeMinimumRequired": {
+        "major": 3,
+        "minor": 21,
+        "patch": 0
+    },
+    "configurePresets": [
+        {
+            "name": "Android_base",
+            "displayName": "Base build for Android",
+            "generator": "Ninja",
+            "hidden": true,
+            "cacheVariables": {
+                "ANDROID_PLATFORM": "26",
+                "ANDROID_STL": "c++_static",
+                "CMAKE_ANDROID_NDK": "$env{ANDROID_NDK_HOME}",
+                "CMAKE_BUILD_TYPE": "Release"
+            },
+            "toolchainFile": "$env{ANDROID_NDK_HOME}/build/cmake/android.toolchain.cmake",
+            "binaryDir": "${sourceDir}/build/${presetName}",
+            "installDir": "${sourceDir}/install/${presetName}"
+        },
+        {
+            "name": "Android_x86",
+            "inherits": "Android_base",
+            "cacheVariables": {
+                "ANDROID_ABI": "x86"
+            }
+        },
+        {
+            "name": "Android_x86_64",
+            "inherits": "Android_base",
+            "cacheVariables": {
+                "ANDROID_ABI": "x86_64"
+            }
+        },
+        {
+            "name": "Android_armeabi-v7a",
+            "inherits": "Android_base",
+            "cacheVariables": {
+                "ANDROID_ABI": "armeabi-v7a"
+            }
+        },
+        {
+            "name": "Android_arm64-v8a",
+            "inherits": "Android_base",
+            "cacheVariables": {
+                "ANDROID_ABI": "arm64-v8a"
+            }
+        },
+        {
+            "name": "Android_aar_base",
+            "inherits": "Android_base",
+            "cacheVariables": {
+                "INSTALL_FOR_PREFAB": "ON"
+            },
+            "installDir": "install/percetto",
+            "hidden": true
+        },
+        {
+            "name": "Android_x86_64_aar",
+            "inherits": "Android_aar_base",
+            "cacheVariables": {
+                "ANDROID_ABI": "x86_64"
+            }
+        },
+        {
+            "name": "Android_armeabi-v7a_aar",
+            "inherits": "Android_aar_base",
+            "cacheVariables": {
+                "ANDROID_ABI": "armeabi-v7a"
+            }
+        },
+        {
+            "name": "Android_arm64-v8a_aar",
+            "inherits": "Android_aar_base",
+            "cacheVariables": {
+                "ANDROID_ABI": "arm64-v8a"
+            }
+        },
+        {
+            "name": "Android_x86_aar",
+            "inherits": "Android_aar_base",
+            "cacheVariables": {
+                "ANDROID_ABI": "x86"
+            }
+        },
+        {
+            "name": "Linux_Ninja",
+            "generator": "Ninja",
+            "binaryDir": "${sourceDir}/build",
+            "installDir": "${sourceDir}/install"
+        },
+        {
+            "name": "Linux_Ninja_Clang",
+            "inherits": "Linux_Ninja",
+            "cacheVariables": {
+                "CMAKE_C_COMPILER": "/usr/bin/clang",
+                "CMAKE_CXX_COMPILER": "/usr/bin/clang++"
+            }
+        }
+    ],
+    "buildPresets": [
+        {
+            "name": "Android_aar_base",
+            "hidden": true,
+            "targets": [
+                "all",
+                "install"
+            ],
+            "verbose": true
+        },
+        {
+            "name": "Android_x86_aar",
+            "inherits": "Android_aar_base",
+            "configurePreset": "Android_x86_aar"
+        },
+        {
+            "name": "Android_x86_64_aar",
+            "inherits": "Android_aar_base",
+            "configurePreset": "Android_x86_64_aar"
+        },
+        {
+            "name": "Android_armeabi-v7a_aar",
+            "inherits": "Android_aar_base",
+            "configurePreset": "Android_armeabi-v7a_aar"
+        },
+        {
+            "name": "Android_arm64-v8a_aar",
+            "inherits": "Android_aar_base",
+            "configurePreset": "Android_arm64-v8a_aar"
+        }
+    ]
+}
