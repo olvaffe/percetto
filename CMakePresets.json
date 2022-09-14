@@ -13,9 +13,9 @@
             "hidden": true,
             "cacheVariables": {
                 "ANDROID_PLATFORM": "26",
-                "ANDROID_STL": "c++_shared",
+                "ANDROID_STL": "c++_static",
                 "CMAKE_ANDROID_NDK": "$env{ANDROID_NDK_HOME}",
-                "CMAKE_BUILD_TYPE": "RelWithDebInfo"
+                "CMAKE_BUILD_TYPE": "Release"
             },
             "toolchainFile": "$env{ANDROID_NDK_HOME}/build/cmake/android.toolchain.cmake",
             "binaryDir": "${sourceDir}/build/${presetName}",

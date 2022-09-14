@@ -38,7 +38,7 @@ install(
     DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
 
 if(ANDROID)
-    target_link_libraries(percetto PRIVATE ${ANDROID_LOG})
+    target_link_libraries(percetto PUBLIC ${ANDROID_LOG})
 endif()
 
 # Provide alias so that examples can work the same as out-of-project usage.
