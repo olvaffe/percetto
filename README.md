@@ -8,7 +8,7 @@ source.
 
 PerCetto works best when statically linked once for a whole process.
 When linked into a shared library, PerCetto symbols should not be exported,
-because percetto_init can not yet be called multiple times.
+because `percetto_init` can not yet be called multiple times.
 
 If there are multiple instances of PerCetto in a single process, the main
 disadvantages are the additional binary size overhead and additional background
@@ -16,19 +16,15 @@ thread for Perfetto. The binary size is typically about 450KB.
 
 ## Building PerCetto
 
-Clone a [recent release](https://github.com/google/perfetto/releases) of
-Perfetto, make sure to checkout a release branch as the `main` branch does
-not have the Perfetto SDK folder (perfetto.h and perfetto.cc).
-
 Configure and build PerCetto:
 ```
-meson build -Dperfetto-sdk=path/to/perfetto/sdk
+meson build
 meson compile -C build
 ```
 
-## Directory Structure
+This will download and build Perfetto SDK as a Meson subproject automatically.
 
-`perfetto-sdk` contains rules to locate and build Perfetto SDK.
+## Directory Structure
 
 `src` contains the source code of Percetto.
 

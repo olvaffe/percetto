@@ -17,7 +17,7 @@ percetto_lib = shared_library(
   'percetto',
   'percetto.cc',
   'perfetto-port.cc',
-  dependencies: perfetto_sdk_dep,
+  dependencies: dep_perfetto,
   cpp_args : ['-fvisibility=hidden', '-fdata-sections', '-ffunction-sections', '-Os'],
   link_args : ['-Wl,--gc-sections', '-Wl,--exclude-libs,ALL'],
   install : true,
