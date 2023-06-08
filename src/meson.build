@@ -13,7 +13,7 @@
 # limitations under the License.
 #
 
-percetto_lib = shared_library(
+percetto_lib = library(
   'percetto',
   'percetto.cc',
   'perfetto-port.cc',
@@ -28,7 +28,7 @@ percetto_dep = declare_dependency(
   link_with: percetto_lib,
 )
 
-atrace_lib = shared_library(
+atrace_lib = library(
   'percetto-atrace',
   'percetto-atrace.c',
   dependencies: percetto_dep,
