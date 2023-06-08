@@ -29,9 +29,9 @@ project(
 dep_threads = dependency('threads')
 dep_perfetto = dependency('perfetto', fallback: ['perfetto', 'dep_perfetto'])
 
-if (meson.is_subproject())
+if (meson.is_subproject() and meson.version().version_compare('<0.63.0'))
   # for some reason the default is not picked up when
-  # this is a subproject
+  # this is a subproject (fixed in meson 0.63.0)
   add_project_arguments('-std=c++2a', language : 'cpp')
 endif
 
