@@ -27,6 +27,7 @@ percetto_dep = declare_dependency(
   include_directories: '.',
   link_with: percetto_lib,
 )
+meson.override_dependency('percetto', percetto_dep)
 
 atrace_lib = shared_library(
   'percetto-atrace',
@@ -41,6 +42,7 @@ atrace_dep = declare_dependency(
   include_directories: '.',
   link_with: atrace_lib,
 )
+meson.override_dependency('percetto-atrace', atrace_dep)
 
 install_headers('percetto.h', 'percetto-atrace.h')
 
