@@ -621,7 +621,7 @@ int percetto_init_with_args(size_t category_count,
                             struct percetto_category** categories,
                             enum percetto_clock clock_id,
                             const struct percetto_init_args* args) {
-  std::lock_guard<std::mutex>(s_percetto.lock);
+  std::lock_guard<std::mutex> guard(s_percetto.lock);
 
   bool is_first_init = !s_percetto.is_initialized;
 
