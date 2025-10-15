@@ -477,6 +477,7 @@ static inline void percetto_event_ext_data(
 
 #ifdef NPERCETTO
 #define TRACE_EVENT(category, str_name)
+#define TRACE_EVENT_DATA(category, str_name, ...)
 #define TRACE_ANY_WITH_ARGS_PTR(type, category, ptrack, ts, str_name, extra)
 #else
 
